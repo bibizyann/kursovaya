@@ -1,0 +1,19 @@
+apiVersion: production.factory.local/v1alpha1
+kind: TechProcess
+metadata:
+  name: line-one
+  namespace: factory-demo
+  labels:
+    app.kubernetes.io/part-of: factory-platform
+spec:
+  templateRef:
+    name: board-a
+  targetSelector:
+    matchLabels:
+      factory.local/line: line-one
+  parameters:
+    product: board-a
+    inspection-threshold: "0.95"
+  rollout:
+    strategy: Recreate
+  timeout: 5m

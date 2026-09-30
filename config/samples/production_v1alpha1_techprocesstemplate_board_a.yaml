@@ -1,0 +1,73 @@
+apiVersion: production.factory.local/v1alpha1
+kind: TechProcessTemplate
+metadata:
+  name: board-a
+  namespace: factory-demo
+  labels:
+    app.kubernetes.io/part-of: factory-platform
+spec:
+  revision: 1.0.0
+  description: Assembly inspection and functional test profile for board A
+  components:
+    - name: vision
+      workload: Deployment
+      image: equipment-simulator:dev
+      args:
+        - --kind=camera
+        - --product=board-a
+      requiredCapabilities:
+        matchLabels:
+          factory.local/camera: "true"
+      ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+      readinessProbe:
+        httpGet:
+          path: /readyz
+          port: http
+        periodSeconds: 2
+        failureThreshold: 3
+      livenessProbe:
+        httpGet:
+          path: /healthz
+          port: http
+        periodSeconds: 10
+      resources:
+        requests:
+          cpu: 10m
+          memory: 16Mi
+        limits:
+          cpu: 100m
+          memory: 64Mi
+    - name: functional-test
+      workload: Deployment
+      image: equipment-simulator:dev
+      args:
+        - --kind=tester
+        - --product=board-a
+      requiredCapabilities:
+        matchLabels:
+          factory.local/tester: model-x
+      ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+      readinessProbe:
+        httpGet:
+          path: /readyz
+          port: http
+        periodSeconds: 2
+        failureThreshold: 3
+      livenessProbe:
+        httpGet:
+          path: /healthz
+          port: http
+        periodSeconds: 10
+      resources:
+        requests:
+          cpu: 10m
+          memory: 16Mi
+        limits:
+          cpu: 100m
+          memory: 64Mi

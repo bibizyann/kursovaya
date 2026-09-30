@@ -1,0 +1,5 @@
+resources:
+  - namespace.yaml
+  - production_v1alpha1_techprocesstemplate_board_a.yaml
+  - production_v1alpha1_techprocesstemplate_board_b.yaml
+  - production_v1alpha1_techprocess.yaml
