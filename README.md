@@ -16,6 +16,7 @@
 - Conditions `Ready`, `Progressing`, `Degraded` и timeout rollout;
 - каталог восьми устройств на шести рабочих местах и учебные рецепты A/B;
 - HTTP-симуляторы операций монтажа, пайки, инспекции, программирования и измерений с управляемыми отказами;
+- контракт телеметрии v1, валидация и JSON-примеры всех восьми устройств;
 - unit-тесты и интеграционные тесты контроллера через `envtest`;
 - Kind-конфигурация с тремя edge-worker-узлами;
 - GitLab CI и контейнерные сборки оператора/симулятора.
@@ -25,10 +26,12 @@
 ```text
 UI -> Factory API -> Git -> Argo CD -> TechProcess -> Go operator -> workloads
                                                         |
-edge agent <- local gRPC <- process workload             +-> status
-     |
-     +-> MQTT -> telemetry and monitoring
+                                                        +-> status and /metrics
+
+simulator -> MQTT -> Mosquitto -> telemetry-receiver /metrics -> Prometheus -> Grafana
 ```
+
+Схема показывает целевую архитектуру. Для телеметрии реализован только контракт; генератор, MQTT-приёмник и мониторинг ещё предстоит добавить. Реальное оборудование и его ПО описываются теоретически согласно [ADR 0006](docs/adr/0006-simulated-telemetry.md).
 
 На текущем этапе прямое применение CR допускается для разработки. Целевой production-путь использует Git как единственный write channel.
 
@@ -78,6 +81,7 @@ internal/controller Reconcile-цикл
 internal/workload   Чистая генерация workload-ресурсов
 internal/equipment  Каталог устройств, учебные рецепты и результаты операций
 internal/simulator  HTTP-симулятор оборудования
+internal/telemetry  Контракт входных снимков и валидация
 config/             CRD, RBAC, deployment и samples
 infra/kind/         Локальная топология
 docs/adr/           Архитектурные решения

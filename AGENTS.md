@@ -21,8 +21,11 @@ This repository contains the practical implementation for the graduation project
 - The operator owns resources derived from those CRs. Do not let Argo CD and the operator mutate the same fields or child workloads.
 - Kubernetes desired state is the command channel for process changes.
 - MQTT is for production telemetry, not an alternative desired-state channel.
-- gRPC is reserved for local edge-agent and equipment interactions.
-- The edge agent handles hardware access, calibration, last-known-good hardware configuration, and store-and-forward telemetry. It must not duplicate kubelet or KubeEdge metadata synchronization.
+- The implemented equipment boundary starts at receipt of a versioned telemetry snapshot. Simulators stand in for external equipment software.
+- Real hardware access, drivers, a hardware edge agent, local gRPC, calibration procedures, and last-known-good hardware configuration are theoretical integration topics, not implementation tasks for this MVP.
+- Telemetry uses a separate receiver and Prometheus/Grafana. Do not add a production event database, a persistent edge queue, or a promise to replay missing history.
+- Simulator telemetry must share readiness state with the HTTP API. Random generation requires an explicit, recorded seed.
+- Missing or stale telemetry means unknown equipment state; it must not stop otherwise running workloads or become an alternative command channel.
 - Hardware-bound workloads are scheduled by capability labels. Never assume an arbitrary node can replace a failed hardware node.
 - Exclusive hardware workloads use a safe `Recreate` or staged rollout; do not run two drivers against one device.
 - The local factory cluster remains authoritative for the critical path. Cloud integrations are optional and must not be required for production continuity.
@@ -36,6 +39,7 @@ This repository contains the practical implementation for the graduation project
 - Child resources require owner references and deterministic names.
 - Deletion requiring hardware shutdown must use a finalizer.
 - A process cannot become Ready until Kubernetes workloads, equipment health, and calibration are all ready for the same revision.
+- In this MVP, equipment health, setup, and calibration are simulated readiness checks. MQTT, Prometheus, and Grafana must not gate workload readiness.
 
 ## Validation
 

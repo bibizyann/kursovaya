@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "namespace": "factory-demo",
+  "tech_process": "line-one",
+  "equipment_id": "component-placer-01",
+  "workstation": "component-placement",
+  "source_instance_id": "component-placer-01-run-1",
+  "source_started_at": "2026-10-01T12:00:00Z",
+  "sequence": 2,
+  "observed_at": "2026-10-01T12:00:05Z",
+  "product": "board-a",
+  "recipe_id": "board-a/component-placer-01/v1",
+  "revision": "demo-revision-a",
+  "simulation_seed": 42,
+  "state": {
+    "healthy": true,
+    "calibrated": true,
+    "setup_complete": true
+  },
+  "readings": {
+    "last_operation_duration_seconds": 30
+  },
+  "counters": {
+    "operations_total": 12,
+    "operation_errors_total": 0,
+    "rejected_operations_total": 0
+  }
+}

@@ -2,6 +2,7 @@
 
 - Status: accepted
 - Date: 2026-08-30
+- Partially superseded by: [ADR 0006](0006-simulated-telemetry.md) for the implemented telemetry boundary, edge agent, local gRPC, and persistent delivery requirements.
 
 ## Decision
 
