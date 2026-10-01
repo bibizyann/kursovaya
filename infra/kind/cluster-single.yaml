@@ -5,6 +5,9 @@ nodes:
     labels:
       factory.local/line: line-one
       factory.local/workstation: all-in-one-development
-      factory.local/camera: "true"
-      factory.local/tester: model-x
-      factory.local/spare-group: line-one
+      factory.local/paste-printing: "true"
+      factory.local/component-placement: "true"
+      factory.local/reflow-soldering: "true"
+      factory.local/optical-inspection: "true"
+      factory.local/manual-assembly: "true"
+      factory.local/programming-test: "true"

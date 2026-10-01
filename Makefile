@@ -74,7 +74,7 @@ test: manifests generate fmt vet setup-envtest ## Run tests.
 
 .PHONY: test-unit
 test-unit: ## Run fast tests that do not require a Kubernetes API server.
-	go test ./internal/workload ./internal/simulator
+	go test ./internal/equipment ./internal/workload ./internal/simulator
 
 # TODO(user): To use a different vendor for e2e tests, modify the setup under 'tests/e2e'.
 # The default setup assumes Kind is pre-installed and builds/loads the Manager Docker image locally.
@@ -98,7 +98,7 @@ setup-test-e2e: ## Set up a Kind cluster for e2e tests if it does not exist
 			echo "Kind cluster '$(KIND_CLUSTER)' already exists. Skipping creation." ;; \
 		*) \
 			echo "Creating Kind cluster '$(KIND_CLUSTER)'..."; \
-			$(KIND) create cluster --name $(KIND_CLUSTER) ;; \
+			$(KIND) create cluster --name $(KIND_CLUSTER) --config infra/kind/cluster-single.yaml ;; \
 	esac
 
 .PHONY: test-e2e

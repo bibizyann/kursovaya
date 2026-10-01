@@ -30,7 +30,12 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	productionv1alpha1 "factory.local/factory-platform/api/v1alpha1"
+	"factory.local/factory-platform/internal/equipment"
+	"factory.local/factory-platform/internal/simulator"
 	"factory.local/factory-platform/test/utils"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 )
 
 // namespace where the project is deployed in
@@ -266,6 +271,66 @@ var _ = Describe("Manager", Ordered, func() {
 				g.Expect(metricsOutput).To(ContainSubstring("< HTTP/1.1 200 OK"))
 			}
 			Eventually(verifyMetricsAvailable, 2*time.Minute).Should(Succeed())
+		})
+
+		It("runs all eight equipment profiles and switches recipes from A to B", func() {
+			DeferCleanup(func() {
+				_, _ = utils.Run(exec.Command("kubectl", "delete", "namespace", "factory-demo", "--ignore-not-found"))
+			})
+			_, err := utils.Run(exec.Command("kubectl", "apply", "-k", "config/samples"))
+			Expect(err).NotTo(HaveOccurred())
+			previousRevision := ""
+			for _, product := range []string{"board-a", "board-b"} {
+				if product == "board-b" {
+					patch := `{"spec":{"templateRef":{"name":"board-b"},"parameters":{"product":"board-b"}}}`
+					_, err = utils.Run(exec.Command("kubectl", "patch", "techprocess", "line-one", "-n", "factory-demo", "--type=merge", "-p", patch))
+					Expect(err).NotTo(HaveOccurred())
+				}
+				var acceptedRevision string
+				Eventually(func(g Gomega) {
+					data, err := utils.Run(exec.Command("kubectl", "get", "techprocess", "line-one", "-n", "factory-demo", "-o", "json"))
+					g.Expect(err).NotTo(HaveOccurred())
+					var process productionv1alpha1.TechProcess
+					g.Expect(json.Unmarshal([]byte(data), &process)).To(Succeed())
+					g.Expect(process.Status.ObservedGeneration).To(Equal(process.Generation))
+					g.Expect(meta.IsStatusConditionTrue(process.Status.Conditions, "Ready")).To(BeTrue())
+					g.Expect(process.Status.AppliedRevision).NotTo(BeEmpty())
+					g.Expect(process.Status.AppliedRevision).NotTo(Equal(previousRevision))
+					acceptedRevision = process.Status.AppliedRevision
+					data, err = utils.Run(exec.Command("kubectl", "get", "pods", "-n", "factory-demo", "-l", "factory.local/tech-process=line-one", "-o", "json"))
+					g.Expect(err).NotTo(HaveOccurred())
+					var pods corev1.PodList
+					g.Expect(json.Unmarshal([]byte(data), &pods)).To(Succeed())
+					g.Expect(pods.Items).To(HaveLen(8))
+					seen := map[string]bool{}
+					for _, pod := range pods.Items {
+						g.Expect(pod.DeletionTimestamp).To(BeNil())
+						g.Expect(pod.Labels["factory.local/revision"]).To(Equal(acceptedRevision))
+						g.Expect(pod.Spec.NodeName).NotTo(BeEmpty())
+						statusURL := fmt.Sprintf("/api/v1/namespaces/factory-demo/pods/%s:8080/proxy/api/v1/status", pod.Name)
+						data, err = utils.Run(exec.Command("kubectl", "get", "--raw", statusURL))
+						g.Expect(err).NotTo(HaveOccurred())
+						var status simulator.Status
+						g.Expect(json.Unmarshal([]byte(data), &status)).To(Succeed())
+						g.Expect(status.Equipment).NotTo(BeNil())
+						g.Expect(status.Recipe).NotTo(BeNil())
+						g.Expect(status.Product).To(Equal(product))
+						g.Expect(status.Revision).To(Equal(acceptedRevision))
+						g.Expect(status.Healthy && status.Calibrated && status.SetupComplete).To(BeTrue())
+						g.Expect(seen[status.Equipment.ID]).To(BeFalse())
+						seen[status.Equipment.ID] = true
+						nodeData, err := utils.Run(exec.Command("kubectl", "get", "node", pod.Spec.NodeName, "-o", "json"))
+						g.Expect(err).NotTo(HaveOccurred())
+						var node corev1.Node
+						g.Expect(json.Unmarshal([]byte(nodeData), &node)).To(Succeed())
+						g.Expect(node.Labels["factory.local/"+status.Equipment.Capability]).To(Equal("true"))
+					}
+					for _, d := range equipment.Catalog() {
+						g.Expect(seen[d.ID]).To(BeTrue())
+					}
+				}, 3*time.Minute, 2*time.Second).Should(Succeed())
+				previousRevision = acceptedRevision
+			}
 		})
 
 		// +kubebuilder:scaffold:e2e-webhooks-checks

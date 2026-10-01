@@ -18,6 +18,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"log/slog"
 	"net/http"
@@ -26,6 +27,7 @@ import (
 	"syscall"
 	"time"
 
+	"factory.local/factory-platform/internal/equipment"
 	"factory.local/factory-platform/internal/simulator"
 )
 
@@ -33,24 +35,43 @@ func main() {
 	var listenAddress string
 	var equipmentKind string
 	var product string
+	var equipmentID, revision string
+	var listEquipment, requireSetup bool
 	var initialMode string
 	var latency time.Duration
 
 	flag.StringVar(&listenAddress, "listen", ":8080", "HTTP listen address")
-	flag.StringVar(&equipmentKind, "kind", "camera", "simulated equipment kind")
+	flag.StringVar(&equipmentKind, "kind", "", "legacy simulator kind: camera or tester")
+	flag.StringVar(&equipmentID, "equipment", "", "catalog equipment ID (default optical-inspector-01)")
+	flag.StringVar(&revision, "revision", os.Getenv("FACTORY_REVISION"), "deployed process revision")
+	flag.BoolVar(&listEquipment, "list-equipment", false, "print equipment catalog and exit")
+	flag.BoolVar(&requireSetup, "require-setup", false, "wait for simulated operator setup confirmation")
 	flag.StringVar(&product, "product", "board-a", "product profile")
 	flag.StringVar(&initialMode, "mode", string(simulator.ModeNormal),
-		"initial mode: normal, fault, uncalibrated, or slow")
+		"initial mode: normal, fault, uncalibrated, unprepared, or slow")
 	flag.DurationVar(&latency, "latency", 2*time.Second, "measurement latency in slow mode")
 	flag.Parse()
+	if listEquipment {
+		if err := json.NewEncoder(os.Stdout).Encode(equipment.Catalog()); err != nil {
+			slog.Error("Catalog output failed", "error", err)
+			os.Exit(1)
+		}
+		return
+	}
+	if equipmentID == "" && equipmentKind == "" {
+		equipmentID = "optical-inspector-01"
+	}
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	handler, err := simulator.New(simulator.Config{
-		Kind:        equipmentKind,
-		Product:     product,
-		InitialMode: simulator.Mode(initialMode),
-		Latency:     latency,
-		Logger:      logger,
+		Kind:         equipmentKind,
+		EquipmentID:  equipmentID,
+		Revision:     revision,
+		RequireSetup: requireSetup,
+		Product:      product,
+		InitialMode:  simulator.Mode(initialMode),
+		Latency:      latency,
+		Logger:       logger,
 	})
 	if err != nil {
 		logger.Error("Invalid simulator configuration", "error", err)
@@ -76,7 +97,7 @@ func main() {
 	}()
 
 	logger.Info("Starting equipment simulator", "address", listenAddress, "kind", equipmentKind,
-		"product", product, "mode", initialMode)
+		"equipment", equipmentID, "product", product, "mode", initialMode)
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		logger.Error("Simulator server failed", "error", err)
 		os.Exit(1)

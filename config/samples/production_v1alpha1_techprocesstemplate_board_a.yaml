@@ -6,18 +6,18 @@ metadata:
   labels:
     app.kubernetes.io/part-of: factory-platform
 spec:
-  revision: 1.0.0
-  description: Assembly inspection and functional test profile for board A
+  revision: 2.0.0
+  description: Simulated small-batch assembly workshop for board-a
   components:
-    - name: vision
+    - name: paste-printer-01
       workload: Deployment
       image: equipment-simulator:dev
       args:
-        - --kind=camera
+        - --equipment=paste-printer-01
         - --product=board-a
       requiredCapabilities:
         matchLabels:
-          factory.local/camera: "true"
+          factory.local/paste-printing: "true"
       ports:
         - name: http
           containerPort: 8080
@@ -40,15 +40,201 @@ spec:
         limits:
           cpu: 100m
           memory: 64Mi
-    - name: functional-test
+    - name: component-placer-01
       workload: Deployment
       image: equipment-simulator:dev
       args:
-        - --kind=tester
+        - --equipment=component-placer-01
         - --product=board-a
       requiredCapabilities:
         matchLabels:
-          factory.local/tester: model-x
+          factory.local/component-placement: "true"
+      ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+      readinessProbe:
+        httpGet:
+          path: /readyz
+          port: http
+        periodSeconds: 2
+        failureThreshold: 3
+      livenessProbe:
+        httpGet:
+          path: /healthz
+          port: http
+        periodSeconds: 10
+      resources:
+        requests:
+          cpu: 10m
+          memory: 16Mi
+        limits:
+          cpu: 100m
+          memory: 64Mi
+    - name: reflow-oven-01
+      workload: Deployment
+      image: equipment-simulator:dev
+      args:
+        - --equipment=reflow-oven-01
+        - --product=board-a
+      requiredCapabilities:
+        matchLabels:
+          factory.local/reflow-soldering: "true"
+      ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+      readinessProbe:
+        httpGet:
+          path: /readyz
+          port: http
+        periodSeconds: 2
+        failureThreshold: 3
+      livenessProbe:
+        httpGet:
+          path: /healthz
+          port: http
+        periodSeconds: 10
+      resources:
+        requests:
+          cpu: 10m
+          memory: 16Mi
+        limits:
+          cpu: 100m
+          memory: 64Mi
+    - name: optical-inspector-01
+      workload: Deployment
+      image: equipment-simulator:dev
+      args:
+        - --equipment=optical-inspector-01
+        - --product=board-a
+      requiredCapabilities:
+        matchLabels:
+          factory.local/optical-inspection: "true"
+      ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+      readinessProbe:
+        httpGet:
+          path: /readyz
+          port: http
+        periodSeconds: 2
+        failureThreshold: 3
+      livenessProbe:
+        httpGet:
+          path: /healthz
+          port: http
+        periodSeconds: 10
+      resources:
+        requests:
+          cpu: 10m
+          memory: 16Mi
+        limits:
+          cpu: 100m
+          memory: 64Mi
+    - name: manual-soldering-01
+      workload: Deployment
+      image: equipment-simulator:dev
+      args:
+        - --equipment=manual-soldering-01
+        - --product=board-a
+      requiredCapabilities:
+        matchLabels:
+          factory.local/manual-assembly: "true"
+      ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+      readinessProbe:
+        httpGet:
+          path: /readyz
+          port: http
+        periodSeconds: 2
+        failureThreshold: 3
+      livenessProbe:
+        httpGet:
+          path: /healthz
+          port: http
+        periodSeconds: 10
+      resources:
+        requests:
+          cpu: 10m
+          memory: 16Mi
+        limits:
+          cpu: 100m
+          memory: 64Mi
+    - name: programmer-01
+      workload: Deployment
+      image: equipment-simulator:dev
+      args:
+        - --equipment=programmer-01
+        - --product=board-a
+      requiredCapabilities:
+        matchLabels:
+          factory.local/programming-test: "true"
+      ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+      readinessProbe:
+        httpGet:
+          path: /readyz
+          port: http
+        periodSeconds: 2
+        failureThreshold: 3
+      livenessProbe:
+        httpGet:
+          path: /healthz
+          port: http
+        periodSeconds: 10
+      resources:
+        requests:
+          cpu: 10m
+          memory: 16Mi
+        limits:
+          cpu: 100m
+          memory: 64Mi
+    - name: test-power-supply-01
+      workload: Deployment
+      image: equipment-simulator:dev
+      args:
+        - --equipment=test-power-supply-01
+        - --product=board-a
+      requiredCapabilities:
+        matchLabels:
+          factory.local/programming-test: "true"
+      ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+      readinessProbe:
+        httpGet:
+          path: /readyz
+          port: http
+        periodSeconds: 2
+        failureThreshold: 3
+      livenessProbe:
+        httpGet:
+          path: /healthz
+          port: http
+        periodSeconds: 10
+      resources:
+        requests:
+          cpu: 10m
+          memory: 16Mi
+        limits:
+          cpu: 100m
+          memory: 64Mi
+    - name: test-multimeter-01
+      workload: Deployment
+      image: equipment-simulator:dev
+      args:
+        - --equipment=test-multimeter-01
+        - --product=board-a
+      requiredCapabilities:
+        matchLabels:
+          factory.local/programming-test: "true"
       ports:
         - name: http
           containerPort: 8080

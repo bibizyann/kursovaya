@@ -14,7 +14,8 @@
 - создание и обновление `Deployment`/`DaemonSet`;
 - безопасный `Recreate` по умолчанию;
 - Conditions `Ready`, `Progressing`, `Degraded` и timeout rollout;
-- HTTP-симулятор камеры/тестового стенда с управляемыми отказами;
+- каталог восьми устройств на шести рабочих местах и учебные рецепты A/B;
+- HTTP-симуляторы операций монтажа, пайки, инспекции, программирования и измерений с управляемыми отказами;
 - unit-тесты и интеграционные тесты контроллера через `envtest`;
 - Kind-конфигурация с тремя edge-worker-узлами;
 - GitLab CI и контейнерные сборки оператора/симулятора.
@@ -57,9 +58,11 @@ make dev-demo
 kubectl get techprocess -n factory-demo -w
 ```
 
-По умолчанию используется одновузловой Kind-стенд. Полная топология с отдельными camera/tester/spare worker-узлами запускается командой `make dev-up-multinode` после повышения локальных inotify-лимитов; подробности приведены в runbook.
+По умолчанию используется одновузловой Kind-стенд. Полная топология с worker-узлами для SMT-монтажа, контроля/испытаний и симулируемого резерва запускается командой `make dev-up-multinode` после повышения локальных inotify-лимитов; подробности приведены в runbook.
 
 Подробная инструкция и переключение `board-a → board-b` описаны в [`docs/runbooks/local-development.md`](./docs/runbooks/local-development.md).
+
+Для запуска отдельных устройств и проверки операций см. [инструкцию симуляторов](docs/runbooks/equipment-simulation.md). Последовательное обновление рабочих мест и автоматический rollback ещё не реализованы.
 
 Удаление только development-кластера:
 
@@ -73,7 +76,8 @@ make dev-down
 api/v1alpha1/        Kubernetes API
 internal/controller Reconcile-цикл
 internal/workload   Чистая генерация workload-ресурсов
-internal/simulator  Симулятор оборудования
+internal/equipment  Каталог устройств, учебные рецепты и результаты операций
+internal/simulator  HTTP-симулятор оборудования
 config/             CRD, RBAC, deployment и samples
 infra/kind/         Локальная топология
 docs/adr/           Архитектурные решения

@@ -5,17 +5,25 @@ nodes:
   - role: worker
     labels:
       factory.local/line: line-one
-      factory.local/workstation: vision-primary
-      factory.local/camera: "true"
+      factory.local/workstation: smt-assembly
+      factory.local/paste-printing: "true"
+      factory.local/component-placement: "true"
+      factory.local/reflow-soldering: "true"
   - role: worker
     labels:
       factory.local/line: line-one
-      factory.local/workstation: tester-primary
-      factory.local/tester: model-x
+      factory.local/workstation: inspection-and-test
+      factory.local/optical-inspection: "true"
+      factory.local/manual-assembly: "true"
+      factory.local/programming-test: "true"
   - role: worker
     labels:
       factory.local/line: line-one
-      factory.local/workstation: universal-spare
-      factory.local/camera: "true"
-      factory.local/tester: model-x
+      factory.local/workstation: simulated-spare
+      factory.local/paste-printing: "true"
+      factory.local/component-placement: "true"
+      factory.local/reflow-soldering: "true"
+      factory.local/optical-inspection: "true"
+      factory.local/manual-assembly: "true"
+      factory.local/programming-test: "true"
       factory.local/spare-group: line-one

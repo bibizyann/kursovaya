@@ -26,6 +26,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"factory.local/factory-platform/internal/equipment"
 )
 
 // Mode controls simulated equipment behavior.
@@ -40,28 +42,37 @@ const (
 	ModeFault Mode = "fault"
 	// ModeUncalibrated reports healthy equipment that requires calibration.
 	ModeUncalibrated Mode = "uncalibrated"
+	// ModeUnprepared waits for simulated operator setup confirmation.
+	ModeUnprepared Mode = "unprepared"
 	// ModeSlow delays measurements without failing readiness.
 	ModeSlow Mode = "slow"
 )
 
 // Config defines one equipment simulator instance.
 type Config struct {
-	Kind        string
-	Product     string
-	InitialMode Mode
-	Latency     time.Duration
-	Logger      *slog.Logger
+	Kind         string
+	EquipmentID  string
+	Revision     string
+	RequireSetup bool
+	Product      string
+	InitialMode  Mode
+	Latency      time.Duration
+	Logger       *slog.Logger
 }
 
 // Status is the public equipment state returned by the simulator.
 type Status struct {
-	Kind       string    `json:"kind"`
-	Product    string    `json:"product"`
-	Mode       Mode      `json:"mode"`
-	Healthy    bool      `json:"healthy"`
-	Calibrated bool      `json:"calibrated"`
-	Sequence   uint64    `json:"sequence"`
-	UpdatedAt  time.Time `json:"updatedAt"`
+	Equipment     *equipment.Device `json:"equipment,omitempty"`
+	Recipe        *equipment.Recipe `json:"recipe,omitempty"`
+	Revision      string            `json:"revision,omitempty"`
+	SetupComplete bool              `json:"setupComplete"`
+	Kind          string            `json:"kind"`
+	Product       string            `json:"product"`
+	Mode          Mode              `json:"mode"`
+	Healthy       bool              `json:"healthy"`
+	Calibrated    bool              `json:"calibrated"`
+	Sequence      uint64            `json:"sequence"`
+	UpdatedAt     time.Time         `json:"updatedAt"`
 }
 
 // Measurement represents one deterministic simulated production observation.
@@ -77,6 +88,7 @@ type Measurement struct {
 // Server is a concurrency-safe equipment simulator and HTTP handler.
 type Server struct {
 	mu      sync.RWMutex
+	epoch   uint64
 	state   Status
 	latency time.Duration
 	logger  *slog.Logger
@@ -85,8 +97,26 @@ type Server struct {
 
 // New creates a simulator in the configured mode.
 func New(config Config) (*Server, error) {
-	if strings.TrimSpace(config.Kind) == "" {
-		return nil, errors.New("equipment kind must not be empty")
+	var device *equipment.Device
+	var recipe *equipment.Recipe
+	if config.EquipmentID != "" {
+		if config.Kind != "" {
+			return nil, errors.New("equipment and legacy kind are mutually exclusive")
+		}
+		d, err := equipment.Lookup(config.EquipmentID)
+		if err != nil {
+			return nil, err
+		}
+		r, err := equipment.Profile(config.EquipmentID, config.Product)
+		if err != nil {
+			return nil, err
+		}
+		device, recipe, config.Kind = &d, &r, d.Kind
+	} else if config.Kind != "camera" && config.Kind != "tester" {
+		return nil, errors.New("select a catalog equipment ID or legacy kind camera/tester")
+	}
+	if strings.TrimSpace(config.Revision) == "" {
+		config.Revision = "standalone"
 	}
 	if strings.TrimSpace(config.Product) == "" {
 		return nil, errors.New("product must not be empty")
@@ -103,12 +133,16 @@ func New(config Config) (*Server, error) {
 
 	server := &Server{
 		state: Status{
-			Kind:       config.Kind,
-			Product:    config.Product,
-			Mode:       config.InitialMode,
-			Healthy:    config.InitialMode != ModeFault,
-			Calibrated: config.InitialMode == ModeNormal || config.InitialMode == ModeSlow,
-			UpdatedAt:  time.Now().UTC(),
+			Equipment:     device,
+			Recipe:        recipe,
+			Revision:      config.Revision,
+			SetupComplete: !config.RequireSetup && config.InitialMode != ModeUnprepared,
+			Kind:          config.Kind,
+			Product:       config.Product,
+			Mode:          config.InitialMode,
+			Healthy:       config.InitialMode != ModeFault,
+			Calibrated:    config.InitialMode != ModeFault && config.InitialMode != ModeUncalibrated,
+			UpdatedAt:     time.Now().UTC(),
 		},
 		latency: config.Latency,
 		logger:  config.Logger,
@@ -130,6 +164,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("PUT /api/v1/mode", s.handleMode)
 	s.mux.HandleFunc("POST /api/v1/calibrate", s.handleCalibrate)
 	s.mux.HandleFunc("POST /api/v1/measurements", s.handleMeasurement)
+	s.mux.HandleFunc("POST /api/v1/operations", s.handleOperation)
+	s.mux.HandleFunc("POST /api/v1/setup", s.handleSetup)
 }
 
 func (s *Server) handleHealth(writer http.ResponseWriter, _ *http.Request) {
@@ -138,7 +174,7 @@ func (s *Server) handleHealth(writer http.ResponseWriter, _ *http.Request) {
 
 func (s *Server) handleReady(writer http.ResponseWriter, _ *http.Request) {
 	status := s.snapshot()
-	if !status.Healthy || !status.Calibrated {
+	if !status.Healthy || !status.Calibrated || !status.SetupComplete {
 		writeJSON(writer, http.StatusServiceUnavailable, status)
 		return
 	}
@@ -167,7 +203,11 @@ func (s *Server) handleMode(writer http.ResponseWriter, request *http.Request) {
 	s.mu.Lock()
 	s.state.Mode = input.Mode
 	s.state.Healthy = input.Mode != ModeFault
-	s.state.Calibrated = input.Mode == ModeNormal || input.Mode == ModeSlow
+	s.state.Calibrated = input.Mode != ModeFault && input.Mode != ModeUncalibrated
+	if input.Mode == ModeUnprepared {
+		s.state.SetupComplete = false
+	}
+	s.epoch++
 	s.state.UpdatedAt = time.Now().UTC()
 	status := s.state
 	s.mu.Unlock()
@@ -184,41 +224,98 @@ func (s *Server) handleCalibrate(writer http.ResponseWriter, _ *http.Request) {
 		return
 	}
 	s.state.Calibrated = true
+	s.epoch++
 	s.state.UpdatedAt = time.Now().UTC()
 	writeJSON(writer, http.StatusOK, s.state)
 }
 
-func (s *Server) handleMeasurement(writer http.ResponseWriter, request *http.Request) {
-	status := s.snapshot()
-	if !status.Healthy || !status.Calibrated {
-		writeJSON(writer, http.StatusConflict, map[string]string{errorResponseKey: "equipment is not ready"})
+// Operation is an observation tied to a device, recipe, and deployed revision.
+type Operation struct {
+	equipment.Result
+	EquipmentID string    `json:"equipmentId"`
+	Workstation string    `json:"workstation"`
+	Product     string    `json:"product"`
+	RecipeID    string    `json:"recipeId"`
+	Revision    string    `json:"revision"`
+	Sequence    uint64    `json:"sequence"`
+	ObservedAt  time.Time `json:"observedAt"`
+}
+
+func (s *Server) handleSetup(writer http.ResponseWriter, _ *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.state.Healthy {
+		writeJSON(writer, http.StatusConflict, map[string]string{errorResponseKey: "equipment fault prevents setup"})
 		return
+	}
+	s.state.SetupComplete = true
+	s.state.UpdatedAt = time.Now().UTC()
+	s.epoch++
+	writeJSON(writer, http.StatusOK, s.state)
+}
+
+func (s *Server) handleOperation(writer http.ResponseWriter, request *http.Request) {
+	if s.snapshot().Equipment == nil {
+		writeJSON(writer, http.StatusConflict, map[string]string{errorResponseKey: "operations require catalog equipment"})
+		return
+	}
+	status, ok := s.observe(writer, request)
+	if !ok {
+		return
+	}
+	writeJSON(writer, http.StatusOK, Operation{
+		Result:      equipment.Execute(*status.Recipe, status.Sequence),
+		EquipmentID: status.Equipment.ID, Workstation: status.Equipment.Workstation,
+		Product: status.Product, RecipeID: status.Recipe.ID, Revision: status.Revision,
+		Sequence: status.Sequence, ObservedAt: status.UpdatedAt,
+	})
+}
+
+func (s *Server) handleMeasurement(writer http.ResponseWriter, request *http.Request) {
+	if s.snapshot().Equipment != nil {
+		writeJSON(writer, http.StatusConflict, map[string]string{errorResponseKey: "use /api/v1/operations for catalog equipment"})
+		return
+	}
+	status, ok := s.observe(writer, request)
+	if !ok {
+		return
+	}
+	writeJSON(writer, http.StatusOK, Measurement{
+		EquipmentKind: status.Kind, Product: status.Product, Sequence: status.Sequence,
+		Accepted: status.Sequence%10 != 0, Value: 0.90 + float64(status.Sequence%10)/100,
+		ObservedAt: status.UpdatedAt,
+	})
+}
+
+func (s *Server) observe(writer http.ResponseWriter, request *http.Request) (Status, bool) {
+	s.mu.RLock()
+	status, epoch := s.state, s.epoch
+	s.mu.RUnlock()
+	if !status.Healthy || !status.Calibrated || !status.SetupComplete {
+		writeJSON(writer, http.StatusConflict, map[string]string{errorResponseKey: "equipment is not ready"})
+		return Status{}, false
 	}
 	if status.Mode == ModeSlow && s.latency > 0 {
 		timer := time.NewTimer(s.latency)
 		defer timer.Stop()
 		select {
 		case <-request.Context().Done():
-			return
+			return Status{}, false
 		case <-timer.C:
 		}
 	}
-
 	s.mu.Lock()
+	defer s.mu.Unlock()
+	if request.Context().Err() != nil {
+		return Status{}, false
+	}
+	if s.epoch != epoch {
+		writeJSON(writer, http.StatusConflict, map[string]string{errorResponseKey: "equipment state changed during operation"})
+		return Status{}, false
+	}
 	s.state.Sequence++
 	s.state.UpdatedAt = time.Now().UTC()
-	status = s.state
-	s.mu.Unlock()
-
-	measurement := Measurement{
-		EquipmentKind: status.Kind,
-		Product:       status.Product,
-		Sequence:      status.Sequence,
-		Accepted:      status.Sequence%10 != 0,
-		Value:         0.90 + float64(status.Sequence%10)/100,
-		ObservedAt:    status.UpdatedAt,
-	}
-	writeJSON(writer, http.StatusOK, measurement)
+	return s.state, true
 }
 
 func (s *Server) snapshot() Status {
@@ -229,7 +326,7 @@ func (s *Server) snapshot() Status {
 
 func validMode(mode Mode) bool {
 	switch mode {
-	case ModeNormal, ModeFault, ModeUncalibrated, ModeSlow:
+	case ModeNormal, ModeFault, ModeUncalibrated, ModeSlow, ModeUnprepared:
 		return true
 	default:
 		return false

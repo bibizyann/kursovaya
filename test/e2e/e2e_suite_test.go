@@ -62,6 +62,12 @@ var _ = BeforeSuite(func() {
 	err = utils.LoadImageToKindClusterWithName(managerImage)
 	ExpectWithOffset(1, err).NotTo(HaveOccurred(), "Failed to load the manager image into Kind")
 
+	By("building and loading the equipment simulator")
+	cmd = exec.Command("make", "docker-build-simulator")
+	_, err = utils.Run(cmd)
+	Expect(err).NotTo(HaveOccurred())
+	Expect(utils.LoadImageToKindClusterWithName("equipment-simulator:dev")).To(Succeed())
+
 	configureKubectlKubeRC()
 	setupCertManager()
 })

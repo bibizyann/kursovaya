@@ -12,8 +12,8 @@ spec:
     matchLabels:
       factory.local/line: line-one
   parameters:
+    # Descriptive only: device recipes are selected by --product in the template.
     product: board-a
-    inspection-threshold: "0.95"
   rollout:
     strategy: Recreate
   timeout: 5m
