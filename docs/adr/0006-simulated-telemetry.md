@@ -35,7 +35,15 @@ One locked simulator state backs HTTP operations, readiness, cumulative counters
 
 A ready cycle completes one synthetic operation. An unready cycle emits only a heartbeat. Slow automatic operations remain pending across ticks; a readiness/control epoch change aborts them and increments the error counter. Explicit failed HTTP attempts also increment errors. Rejected products count as completed operations, not equipment faults.
 
-Call the snapshot sink outside the state lock. Sink errors do not affect readiness or trigger historical retries. Step 3 uses a JSON log sink; MQTT is still step 4. Synthetic timing and fluctuations are educational fixtures, not a model of physical throughput or thermal dynamics.
+Call the snapshot sink outside the state lock. Sink errors do not affect readiness or trigger historical retries. Step 3 introduced a JSON log sink; step 4 also offers snapshots to a bounded MQTT worker, so network waits cannot pause automatic cycles. Synthetic timing and fluctuations are educational fixtures, not a model of physical throughput or thermal dynamics.
+
+## MQTT sessions and bounded delivery
+
+Use [Eclipse Paho v1.5.1](https://github.com/eclipse-paho/paho.mqtt.golang/tree/v1.5.1) with MQTT 3.1.1, QoS 1, and retained full snapshots. The subscriber derives exact topics from its expected inventory and validates topic/payload identity before calling the domain receiver.
+
+The publisher retains at most one pending snapshot and one in flight. New pending data replaces old pending data; disconnected offers are dropped. Every connection uses a new client and memory store with a clean session. Disable library-managed reconnect and reconnect explicitly, discarding pending publications, so reconnect does not replay old client history. A packet sent before disconnection may already have reached the broker; receiver deduplication remains necessary.
+
+Keep generator, network worker, and HTTP lifecycle separate. Bound connection, acknowledgment, and shutdown waits. Broker outage does not block simulator operation generation or change readiness. Retained data is subject to the same source-time checks as live delivery. The local [Mosquitto configuration](../../infra/mqtt/mosquitto.conf) disables disk persistence and bounds packet size; deployment-wide installation remains step 6.
 
 ## Readiness and outages
 
@@ -56,7 +64,7 @@ Sequential workstation rollout and automatic rollback remain separate operator t
 7. Prometheus installation and provisioned Grafana dashboards.
 8. End-to-end fault scenarios and a reproducible demonstration runbook.
 
-Steps 1–3 are implemented: the contract, fixtures, in-memory receiver, Prometheus collector, and opt-in periodic simulator generation with a JSON log sink. Subsequent steps require the user's explicit approval after each completed step. The current implementation status is tracked in the [project plan](../../План.md).
+Steps 1–4 are implemented: contract, receiver, generator, MQTT transport, and a standalone receiver serving /metrics. The single-device Mosquitto pipeline and reconnection are verified locally. Subsequent steps require the user's explicit approval after each completed step. The current implementation status is tracked in the [project plan](../../План.md).
 
 ## Consequences
 

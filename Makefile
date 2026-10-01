@@ -72,9 +72,13 @@ vet: ## Run go vet against code.
 test: manifests generate fmt vet setup-envtest ## Run tests.
 	KUBEBUILDER_ASSETS="$(shell "$(ENVTEST)" use $(ENVTEST_K8S_VERSION) --bin-dir "$(LOCALBIN)" -p path)" go test $$(go list -f '{{if or .TestGoFiles .XTestGoFiles}}{{.ImportPath}}{{end}}' ./... | grep -v /e2e) -coverprofile cover.out
 
+.PHONY: test-mqtt
+test-mqtt: ## Run MQTT integration tests using an isolated Mosquitto Docker container.
+	go test -race -tags=mqttintegration ./internal/telemetrymqtt -count=1
+
 .PHONY: test-unit
 test-unit: ## Run fast tests that do not require a Kubernetes API server.
-	go test ./internal/equipment ./internal/workload ./internal/simulator ./internal/telemetry ./internal/telemetryreceiver ./cmd/equipment-simulator
+	go test ./internal/equipment ./internal/workload ./internal/simulator ./internal/telemetry ./internal/telemetryreceiver ./internal/telemetrymqtt ./cmd/equipment-simulator ./cmd/telemetry-receiver
 
 # TODO(user): To use a different vendor for e2e tests, modify the setup under 'tests/e2e'.
 # The default setup assumes Kind is pre-installed and builds/loads the Manager Docker image locally.
@@ -159,6 +163,10 @@ build: manifests generate fmt vet ## Build manager binary.
 .PHONY: build-simulator
 build-simulator: fmt vet ## Build the equipment simulator binary.
 	go build -o bin/equipment-simulator ./cmd/equipment-simulator
+
+.PHONY: build-telemetry-receiver
+build-telemetry-receiver: fmt vet ## Build the standalone MQTT telemetry receiver.
+	go build -o bin/telemetry-receiver ./cmd/telemetry-receiver
 
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.

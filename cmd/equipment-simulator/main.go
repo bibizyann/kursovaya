@@ -52,6 +52,7 @@ func main() {
 		"initial mode: normal, fault, uncalibrated, unprepared, or slow")
 	flag.DurationVar(&latency, "latency", 2*time.Second, "measurement latency in slow mode")
 	telemetryOptions := bindTelemetryFlags(flag.CommandLine)
+	mqttOptions := bindMQTTFlags(flag.CommandLine)
 	flag.Parse()
 	if listEquipment {
 		if err := json.NewEncoder(os.Stdout).Encode(equipment.Catalog()); err != nil {
@@ -68,6 +69,11 @@ func main() {
 	telemetryConfig, err := telemetryOptions.config(flag.CommandLine)
 	if err != nil {
 		logger.Error("Invalid telemetry configuration", "error", err)
+		os.Exit(2)
+	}
+	publisher, err := mqttOptions.publisher(telemetryConfig != nil, logger)
+	if err != nil {
+		logger.Error("Invalid MQTT configuration", "error", err)
 		os.Exit(2)
 	}
 	handler, err := simulator.New(simulator.Config{
@@ -95,14 +101,28 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+	publisherDone := make(chan struct{})
+	if publisher == nil {
+		close(publisherDone)
+	} else {
+		go func() {
+			defer close(publisherDone)
+			if err := publisher.Run(ctx); err != nil {
+				logger.Error("MQTT publisher stopped", "error", err)
+			}
+		}()
+	}
 	generatorDone := make(chan struct{})
 	if telemetryConfig == nil {
 		close(generatorDone)
 	} else {
 		go func() {
 			defer close(generatorDone)
-			err := handler.RunGenerator(ctx, func(_ context.Context, snapshot telemetry.Snapshot) error {
+			err := handler.RunGenerator(ctx, func(ctx context.Context, snapshot telemetry.Snapshot) error {
 				logger.Info("Generated telemetry snapshot", "snapshot", snapshot)
+				if publisher != nil {
+					return publisher.Publish(ctx, snapshot)
+				}
 				return nil
 			})
 			if err != nil {
@@ -129,5 +149,6 @@ func main() {
 	}
 	stop()
 	<-generatorDone
+	<-publisherDone
 	<-shutdownDone
 }
