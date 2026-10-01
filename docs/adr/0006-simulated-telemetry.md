@@ -48,7 +48,7 @@ Sequential workstation rollout and automatic rollback remain separate operator t
 7. Prometheus installation and provisioned Grafana dashboards.
 8. End-to-end fault scenarios and a reproducible demonstration runbook.
 
-Only step 1 is implemented at the time this ADR is introduced. Subsequent steps require the user's explicit approval after each completed step.
+Steps 1–2 are implemented: the contract, fixtures, in-memory receiver, and Prometheus collector. Subsequent steps require the user's explicit approval after each completed step. The current implementation status is tracked in the [project plan](../../План.md).
 
 ## Consequences
 
