@@ -3,7 +3,7 @@
 - Status: accepted
 - Date: 2026-10-01
 - Partially supersedes: [ADR 0003](0003-communication-channels.md), specifically the required hardware edge agent, local gRPC implementation, and persistent telemetry queue/replay.
-- Refines: [ADR 0005](0005-equipment-simulation.md) with a planned optional periodic publisher. Existing HTTP operations remain supported.
+- Refines: [ADR 0005](0005-equipment-simulation.md) with an optional periodic publisher. Existing HTTP operations remain supported.
 
 ## Context
 
@@ -29,6 +29,14 @@ The receiver keeps only current state in memory and exposes metrics. Prometheus 
 
 Do not implement real hardware drivers, an equipment edge agent, local gRPC, physical calibration, a last-known-good hardware cache, a persistent telemetry queue, or a production event database. Describe possible equipment integrations theoretically. A future deployment may replace a simulator with external equipment software that follows the same contract.
 
+## Simulator generation
+
+One locked simulator state backs HTTP operations, readiness, cumulative counters, and automatic cycles. Require an explicit seed and record it in each snapshot. Reproducibility assumes the same clock steps and control/operation order; source lifetime IDs remain unique between runs. Snapshot sequence is independent of the completed-operation sequence.
+
+A ready cycle completes one synthetic operation. An unready cycle emits only a heartbeat. Slow automatic operations remain pending across ticks; a readiness/control epoch change aborts them and increments the error counter. Explicit failed HTTP attempts also increment errors. Rejected products count as completed operations, not equipment faults.
+
+Call the snapshot sink outside the state lock. Sink errors do not affect readiness or trigger historical retries. Step 3 uses a JSON log sink; MQTT is still step 4. Synthetic timing and fluctuations are educational fixtures, not a model of physical throughput or thermal dynamics.
+
 ## Readiness and outages
 
 Equipment health, setup, and calibration remain simulated checks exposed through workload readiness. A Ready process must refer to the same target revision. MQTT connectivity and monitoring availability are not workload readiness conditions.
@@ -48,7 +56,7 @@ Sequential workstation rollout and automatic rollback remain separate operator t
 7. Prometheus installation and provisioned Grafana dashboards.
 8. End-to-end fault scenarios and a reproducible demonstration runbook.
 
-Steps 1–2 are implemented: the contract, fixtures, in-memory receiver, and Prometheus collector. Subsequent steps require the user's explicit approval after each completed step. The current implementation status is tracked in the [project plan](../../План.md).
+Steps 1–3 are implemented: the contract, fixtures, in-memory receiver, Prometheus collector, and opt-in periodic simulator generation with a JSON log sink. Subsequent steps require the user's explicit approval after each completed step. The current implementation status is tracked in the [project plan](../../План.md).
 
 ## Consequences
 

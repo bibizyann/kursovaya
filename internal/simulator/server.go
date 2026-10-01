@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"factory.local/factory-platform/internal/equipment"
+	"factory.local/factory-platform/internal/telemetry"
 )
 
 // Mode controls simulated equipment behavior.
@@ -58,6 +59,10 @@ type Config struct {
 	InitialMode  Mode
 	Latency      time.Duration
 	Logger       *slog.Logger
+	// Telemetry enables automatic cycles; nil keeps request-driven behavior.
+	Telemetry *TelemetryConfig
+	// Now defaults to time.Now and must be safe for concurrent calls.
+	Now func() time.Time
 }
 
 // Status is the public equipment state returned by the simulator.
@@ -87,12 +92,17 @@ type Measurement struct {
 
 // Server is a concurrency-safe equipment simulator and HTTP handler.
 type Server struct {
-	mu      sync.RWMutex
-	epoch   uint64
-	state   Status
-	latency time.Duration
-	logger  *slog.Logger
-	mux     *http.ServeMux
+	mu           sync.RWMutex
+	epoch        uint64
+	state        Status
+	latency      time.Duration
+	logger       *slog.Logger
+	mux          *http.ServeMux
+	now          func() time.Time
+	telemetry    *telemetryState
+	counters     telemetry.Counters
+	lastDuration float64
+	lastVoltage  float64
 }
 
 // New creates a simulator in the configured mode.
@@ -131,6 +141,10 @@ func New(config Config) (*Server, error) {
 		config.Logger = slog.Default()
 	}
 
+	if config.Now == nil {
+		config.Now = time.Now
+	}
+
 	server := &Server{
 		state: Status{
 			Equipment:     device,
@@ -142,11 +156,15 @@ func New(config Config) (*Server, error) {
 			Mode:          config.InitialMode,
 			Healthy:       config.InitialMode != ModeFault,
 			Calibrated:    config.InitialMode != ModeFault && config.InitialMode != ModeUncalibrated,
-			UpdatedAt:     time.Now().UTC(),
+			UpdatedAt:     config.Now().UTC(),
 		},
 		latency: config.Latency,
+		now:     config.Now,
 		logger:  config.Logger,
 		mux:     http.NewServeMux(),
+	}
+	if err := server.configureTelemetry(config.Telemetry); err != nil {
+		return nil, err
 	}
 	server.routes()
 	return server, nil
@@ -174,7 +192,7 @@ func (s *Server) handleHealth(writer http.ResponseWriter, _ *http.Request) {
 
 func (s *Server) handleReady(writer http.ResponseWriter, _ *http.Request) {
 	status := s.snapshot()
-	if !status.Healthy || !status.Calibrated || !status.SetupComplete {
+	if !ready(status) {
 		writeJSON(writer, http.StatusServiceUnavailable, status)
 		return
 	}
@@ -207,8 +225,8 @@ func (s *Server) handleMode(writer http.ResponseWriter, request *http.Request) {
 	if input.Mode == ModeUnprepared {
 		s.state.SetupComplete = false
 	}
-	s.epoch++
-	s.state.UpdatedAt = time.Now().UTC()
+	s.invalidateOperationsLocked()
+	s.state.UpdatedAt = s.now().UTC()
 	status := s.state
 	s.mu.Unlock()
 
@@ -224,8 +242,8 @@ func (s *Server) handleCalibrate(writer http.ResponseWriter, _ *http.Request) {
 		return
 	}
 	s.state.Calibrated = true
-	s.epoch++
-	s.state.UpdatedAt = time.Now().UTC()
+	s.invalidateOperationsLocked()
+	s.state.UpdatedAt = s.now().UTC()
 	writeJSON(writer, http.StatusOK, s.state)
 }
 
@@ -249,8 +267,8 @@ func (s *Server) handleSetup(writer http.ResponseWriter, _ *http.Request) {
 		return
 	}
 	s.state.SetupComplete = true
-	s.state.UpdatedAt = time.Now().UTC()
-	s.epoch++
+	s.state.UpdatedAt = s.now().UTC()
+	s.invalidateOperationsLocked()
 	writeJSON(writer, http.StatusOK, s.state)
 }
 
@@ -259,12 +277,12 @@ func (s *Server) handleOperation(writer http.ResponseWriter, request *http.Reque
 		writeJSON(writer, http.StatusConflict, map[string]string{errorResponseKey: "operations require catalog equipment"})
 		return
 	}
-	status, ok := s.observe(writer, request)
+	status, result, ok := s.observe(writer, request)
 	if !ok {
 		return
 	}
 	writeJSON(writer, http.StatusOK, Operation{
-		Result:      equipment.Execute(*status.Recipe, status.Sequence),
+		Result:      result,
 		EquipmentID: status.Equipment.ID, Workstation: status.Equipment.Workstation,
 		Product: status.Product, RecipeID: status.Recipe.ID, Revision: status.Revision,
 		Sequence: status.Sequence, ObservedAt: status.UpdatedAt,
@@ -276,7 +294,7 @@ func (s *Server) handleMeasurement(writer http.ResponseWriter, request *http.Req
 		writeJSON(writer, http.StatusConflict, map[string]string{errorResponseKey: "use /api/v1/operations for catalog equipment"})
 		return
 	}
-	status, ok := s.observe(writer, request)
+	status, _, ok := s.observe(writer, request)
 	if !ok {
 		return
 	}
@@ -287,35 +305,43 @@ func (s *Server) handleMeasurement(writer http.ResponseWriter, request *http.Req
 	})
 }
 
-func (s *Server) observe(writer http.ResponseWriter, request *http.Request) (Status, bool) {
-	s.mu.RLock()
+func (s *Server) observe(writer http.ResponseWriter, request *http.Request) (Status, equipment.Result, bool) {
+	s.mu.Lock()
 	status, epoch := s.state, s.epoch
-	s.mu.RUnlock()
-	if !status.Healthy || !status.Calibrated || !status.SetupComplete {
+	if !ready(status) {
+		s.counters.OperationErrorsTotal++
+		s.mu.Unlock()
 		writeJSON(writer, http.StatusConflict, map[string]string{errorResponseKey: "equipment is not ready"})
-		return Status{}, false
+		return Status{}, equipment.Result{}, false
 	}
+	startedAt := s.now().UTC()
+	s.mu.Unlock()
 	if status.Mode == ModeSlow && s.latency > 0 {
 		timer := time.NewTimer(s.latency)
 		defer timer.Stop()
 		select {
 		case <-request.Context().Done():
-			return Status{}, false
+			s.mu.Lock()
+			s.counters.OperationErrorsTotal++
+			s.mu.Unlock()
+			return Status{}, equipment.Result{}, false
 		case <-timer.C:
 		}
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if request.Context().Err() != nil {
-		return Status{}, false
+		s.counters.OperationErrorsTotal++
+		return Status{}, equipment.Result{}, false
 	}
 	if s.epoch != epoch {
+		s.counters.OperationErrorsTotal++
 		writeJSON(writer, http.StatusConflict, map[string]string{errorResponseKey: "equipment state changed during operation"})
-		return Status{}, false
+		return Status{}, equipment.Result{}, false
 	}
-	s.state.Sequence++
-	s.state.UpdatedAt = time.Now().UTC()
-	return s.state, true
+	now := s.now().UTC()
+	result := s.completeOperationLocked(now, now.Sub(startedAt))
+	return s.state, result, true
 }
 
 func (s *Server) snapshot() Status {

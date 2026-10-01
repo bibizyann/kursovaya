@@ -29,6 +29,7 @@ import (
 
 	"factory.local/factory-platform/internal/equipment"
 	"factory.local/factory-platform/internal/simulator"
+	"factory.local/factory-platform/internal/telemetry"
 )
 
 func main() {
@@ -50,6 +51,7 @@ func main() {
 	flag.StringVar(&initialMode, "mode", string(simulator.ModeNormal),
 		"initial mode: normal, fault, uncalibrated, unprepared, or slow")
 	flag.DurationVar(&latency, "latency", 2*time.Second, "measurement latency in slow mode")
+	telemetryOptions := bindTelemetryFlags(flag.CommandLine)
 	flag.Parse()
 	if listEquipment {
 		if err := json.NewEncoder(os.Stdout).Encode(equipment.Catalog()); err != nil {
@@ -63,6 +65,11 @@ func main() {
 	}
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	telemetryConfig, err := telemetryOptions.config(flag.CommandLine)
+	if err != nil {
+		logger.Error("Invalid telemetry configuration", "error", err)
+		os.Exit(2)
+	}
 	handler, err := simulator.New(simulator.Config{
 		Kind:         equipmentKind,
 		EquipmentID:  equipmentID,
@@ -72,6 +79,7 @@ func main() {
 		InitialMode:  simulator.Mode(initialMode),
 		Latency:      latency,
 		Logger:       logger,
+		Telemetry:    telemetryConfig,
 	})
 	if err != nil {
 		logger.Error("Invalid simulator configuration", "error", err)
@@ -87,7 +95,24 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+	generatorDone := make(chan struct{})
+	if telemetryConfig == nil {
+		close(generatorDone)
+	} else {
+		go func() {
+			defer close(generatorDone)
+			err := handler.RunGenerator(ctx, func(_ context.Context, snapshot telemetry.Snapshot) error {
+				logger.Info("Generated telemetry snapshot", "snapshot", snapshot)
+				return nil
+			})
+			if err != nil {
+				logger.Error("Telemetry generator stopped", "error", err)
+			}
+		}()
+	}
+	shutdownDone := make(chan struct{})
 	go func() {
+		defer close(shutdownDone)
 		<-ctx.Done()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -102,4 +127,7 @@ func main() {
 		logger.Error("Simulator server failed", "error", err)
 		os.Exit(1)
 	}
+	stop()
+	<-generatorDone
+	<-shutdownDone
 }

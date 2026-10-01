@@ -3,7 +3,7 @@
 - Status: accepted
 - Date: 2026-10-01
 - Refines: [ADR 0004](0004-assembly-workshop-model.md)
-- Refined by: [ADR 0006](0006-simulated-telemetry.md) for planned periodic telemetry and source lifetime semantics. The HTTP operation API remains unchanged.
+- Refined by: [ADR 0006](0006-simulated-telemetry.md) for optional periodic telemetry and source lifetime semantics. The HTTP operation API remains unchanged.
 
 ## Context
 
@@ -25,7 +25,7 @@ Catalog devices expose POST /api/v1/operations. Keep POST /api/v1/measurements f
 
 - Default examples start with preparation already confirmed; experiments can explicitly require confirmation.
 - Rejected inspection results do not mean equipment is unhealthy. Every tenth AOI or voltage-check operation deterministically rejects the simulated product.
-- Operations are request-driven. This implementation does not generate background production, simulate physical timing, or publish telemetry.
+- Operations remain request-driven by default. ADR 0006 adds opt-in background cycles and JSON telemetry snapshots; physical timing and MQTT publishing are not implemented at this stage.
 - Sequence numbers and fault/setup state reset on process restart. ADR 0006 replaces the planned edge-agent persistence with explicit telemetry source lifetimes; missing history is not replayed in the MVP.
 - Sequential workstation rollout and automatic rollback from ADR 0004 remain pending. Current component updates retain the existing operator behavior.
 - Sample/catalog/Kind consistency tests and an e2e A-to-B scenario validate this mapping.
