@@ -24,7 +24,7 @@ lint:
     - make lint-config
     - make lint
     - bin/golangci-lint run --build-tags=e2e,monitoring
-    - make telemetry-render monitoring-render
+    - make telemetry-render monitoring-render ui-render
 
 unit:
   stage: test
@@ -44,12 +44,13 @@ controller-integration:
 build:
   stage: build
   script:
-    - make build build-simulator build-telemetry-receiver
+    - make build build-simulator build-telemetry-receiver build-factory-api
   artifacts:
     paths:
       - bin/manager
       - bin/equipment-simulator
       - bin/telemetry-receiver
+      - bin/factory-api
     expire_in: 7 days
 
 # Enable on a dedicated runner with local Docker, Go, Make, and Kind v0.31.0.
@@ -67,7 +68,7 @@ telemetry-e2e:
     - mkdir -p .cache
     - make kubectl
     - make test-mqtt test-monitoring
-    - CERT_MANAGER_INSTALL_SKIP=true FACTORY_MONITORING_E2E=true make test-e2e
+    - CERT_MANAGER_INSTALL_SKIP=true FACTORY_MONITORING_E2E=true FACTORY_UI_E2E=true make test-e2e
   after_script:
     - kind export logs --name "factory-ci-$CI_JOB_ID" .cache/kind-logs || true
     - kind delete cluster --name "factory-ci-$CI_JOB_ID"

@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Factory — обзор участка</title>
+  <link rel="stylesheet" href="/style.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <a class="skip" href="#main">Перейти к обзору</a>
+  <aside class="sidebar">
+    <a class="brand" href="/" aria-label="Factory — главная"><span class="brand-mark">F</span> FACTORY<span class="brand-sub">WORKSHOP CONTROL</span></a>
+    <div class="sidebar-label">РАБОЧЕЕ ПРОСТРАНСТВО</div>
+    <nav aria-label="Основная навигация"><a class="nav-active" href="#main"><span>▦</span> Обзор участка</a><a href="#equipment"><span>◈</span> Оборудование</a></nav>
+    <div class="sidebar-bottom"><span class="dot"></span> Локальный стенд<small>Симуляция сборочного цеха</small></div>
+  </aside>
+  <div class="workspace">
+    <header class="topbar"><span>Производство <span class="slash">/</span> {{.Process}}</span><span class="readonly">Только просмотр</span></header>
+    <main id="main">
+      <div class="page-heading"><div><div class="eyebrow">ДИСПЕТЧЕРСКАЯ ПАНЕЛЬ</div><h1>Сборочный участок</h1><p>От нанесения пасты до функциональных испытаний</p></div><div class="heading-actions"><a id="grafana" class="button" hidden target="_blank" rel="noreferrer">Графики в Grafana ↗</a><button id="refresh" class="button" type="button">↻ Обновить</button></div></div>
+      <div id="connection" class="notice" role="status">Подключаемся к источникам состояния…</div>
+      <section class="summary" aria-label="Состояние участка">
+        <article class="summary-card process-summary"><div class="eyebrow">ТЕХПРОЦЕСС</div><div class="summary-value"><span id="process-state" class="badge unknown">Нет данных</span></div><div id="process-reason" class="muted">Ожидание первого ответа</div></article>
+        <article class="summary-card"><div class="eyebrow">ПРОФИЛЬ В КЛАСТЕРЕ</div><div id="profile" class="summary-value">—</div><div id="revision" class="mono muted">Ревизия неизвестна</div></article>
+        <article class="summary-card"><div class="eyebrow">ГОТОВО КОМПОНЕНТОВ</div><div id="ready-count" class="summary-value">— <small>/ —</small></div><div class="muted">Для целевой ревизии</div></article>
+        <article class="summary-card"><div class="eyebrow">СВЕЖАЯ ТЕЛЕМЕТРИЯ</div><div id="fresh-count" class="summary-value">— <small>/ 8</small></div><div class="muted">Отдельно от готовности процесса</div></article>
+      </section>
+      <section class="route-section" aria-labelledby="route-title"><div class="section-heading"><h2 id="route-title">Маршрут участка</h2><span class="muted">6 рабочих мест · 8 устройств</span></div><div id="route" class="route"></div><p class="route-note">Выберите рабочее место, чтобы отфильтровать оборудование.</p></section>
+      <section id="equipment" aria-labelledby="equipment-title"><div class="section-heading equipment-heading"><h2 id="equipment-title">Оборудование <span id="visible-count" class="count">8</span></h2><div class="filters"><label class="sr-only" for="search">Поиск оборудования</label><input id="search" type="search" placeholder="Найти устройство…" autocomplete="off"><label class="sr-only" for="state-filter">Состояние оборудования</label><select id="state-filter"><option value="all">Все состояния</option><option value="attention">Требуют внимания</option><option value="ready">Готовые приложения</option></select><button id="reset" class="text-button" hidden type="button">Сбросить фильтры</button></div></div><div id="devices" class="devices" aria-label="Устройства участка"></div><p id="empty" class="empty" hidden>По этим фильтрам устройств нет.</p></section>
+      <footer><div id="sources" class="sources"></div><span id="updated">Ещё не обновлено</span></footer>
+      <p class="scope-note">Настройки и переключение профиля появятся на следующем этапе. Сейчас панель отображает состояние программных симуляторов.</p>
+    </main>
+  </div>
+  <dialog id="detail" aria-labelledby="detail-title"><div class="dialog-heading"><div><div class="eyebrow">КАРТОЧКА УСТРОЙСТВА</div><h2 id="detail-title">Устройство</h2></div><button id="close-detail" class="button" type="button" aria-label="Закрыть карточку">✕</button></div><div id="detail-body"></div></dialog>
+</body>
+</html>

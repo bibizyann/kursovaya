@@ -73,6 +73,12 @@ var _ = BeforeSuite(func() {
 	_, err = utils.Run(exec.Command("make", "docker-build-telemetry-receiver"))
 	Expect(err).NotTo(HaveOccurred())
 	Expect(utils.LoadImageToKindClusterWithName("telemetry-receiver:dev")).To(Succeed())
+	if os.Getenv("FACTORY_UI_E2E") == enabledEnvValue {
+		By("building and loading the read-only overview")
+		_, err = utils.Run(exec.Command("make", "docker-build-factory-api", "UI_IMG=factory-api:e2e"))
+		Expect(err).NotTo(HaveOccurred())
+		Expect(utils.LoadImageToKindClusterWithName("factory-api:e2e")).To(Succeed())
+	}
 	_, err = utils.Run(exec.Command("docker", "pull", mqttBrokerImage))
 	Expect(err).NotTo(HaveOccurred())
 	Expect(utils.LoadImageToKindClusterWithName(mqttBrokerImage)).To(Succeed())

@@ -26,6 +26,7 @@
 - GitLab CI и контейнерные сборки оператора, симулятора и приёмника;
 - профиль полного Kind-стенда с восемью MQTT-источниками (`make telemetry-demo`);
 - Prometheus, правила оповещения и три готовых dashboard Grafana (`make monitoring-install`); полный E2E требует работоспособного Kind-окружения.
+- read-only Factory API и веб-обзор шести рабочих мест / восьми устройств: готовность ревизии, размещение, свежесть телеметрии, карточки и ссылки Grafana (`make ui-install`, `make ui-open`).
 
 ## Архитектурный поток
 
@@ -40,6 +41,8 @@ simulator -> MQTT -> Mosquitto -> telemetry-receiver /metrics -> Prometheus -> G
 Схема показывает целевую архитектуру. Для телеметрии реализована локальная цепочка «симулятор → MQTT/Mosquitto → приёмник → `/metrics`». Prometheus и Grafana разворачиваются через `make monitoring-install`; просмотр графиков описан в [инструкции мониторинга](docs/runbooks/monitoring.md). Запуск восьми устройств в Kind описан в [инструкции стенда](docs/runbooks/telemetry-kind.md). Запуск одного устройства описан в [MQTT-runbook](docs/runbooks/telemetry-mqtt.md). Реальное оборудование и его ПО описываются теоретически согласно [ADR 0006](docs/adr/0006-simulated-telemetry.md).
 
 На текущем этапе прямое применение CR допускается для разработки. Целевой production-путь использует Git как единственный write channel.
+
+Этап U1 реализует чтение состояния через Factory API и локальную веб-панель. Переключение профиля и GitOps-запись из UI относятся к следующим этапам. Запуск на существующем стенде: `make ui-install`, затем `make ui-open` и **http://localhost:8081**. Подробности — в [инструкции Factory UI](docs/runbooks/factory-ui.md).
 
 ## Требования
 

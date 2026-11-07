@@ -3,6 +3,8 @@ IMG ?= controller:latest
 # Image URL for the equipment simulator.
 SIMULATOR_IMG ?= equipment-simulator:dev
 RECEIVER_IMG ?= telemetry-receiver:dev
+# Empty selects a content-derived tag in hack/ui.sh.
+UI_IMG ?=
 # YEAR defines the year value used for substituting the YEAR placeholder in the boilerplate header.
 YEAR ?= $(shell date +%Y)
 
@@ -79,7 +81,7 @@ test-mqtt: ## Run MQTT integration tests using an isolated Mosquitto Docker cont
 
 .PHONY: test-unit
 test-unit: ## Run fast tests that do not require a Kubernetes API server.
-	go test ./internal/equipment ./internal/workload ./internal/simulator ./internal/telemetry ./internal/telemetryreceiver ./internal/telemetrymqtt ./cmd/equipment-simulator ./cmd/telemetry-receiver
+	go test ./internal/equipment ./internal/workload ./internal/simulator ./internal/telemetry ./internal/telemetryreceiver ./internal/telemetrymqtt ./cmd/equipment-simulator ./cmd/telemetry-receiver ./internal/factory ./internal/factorysource ./internal/factoryapi ./cmd/factory-api
 
 # TODO(user): To use a different vendor for e2e tests, modify the setup under 'tests/e2e'.
 # The default setup assumes Kind is pre-installed and builds/loads the Manager Docker image locally.
@@ -169,6 +171,26 @@ build-simulator: fmt vet ## Build the equipment simulator binary.
 .PHONY: build-telemetry-receiver
 build-telemetry-receiver: fmt vet ## Build the standalone MQTT telemetry receiver.
 	go build -o bin/telemetry-receiver ./cmd/telemetry-receiver
+
+.PHONY: build-factory-api
+build-factory-api: fmt vet ## Build the read-only workshop API with embedded UI.
+	go build -trimpath -o bin/factory-api ./cmd/factory-api
+
+.PHONY: docker-build-factory-api
+docker-build-factory-api: ## Build the overview container image.
+	$(CONTAINER_TOOL) build -f Dockerfile.factory-api -t $(if $(UI_IMG),$(UI_IMG),factory-api:dev) .
+
+.PHONY: ui-render
+ui-render: kustomize ## Validate the read-only overview manifests.
+	"$(KUSTOMIZE)" build config/ui > /dev/null
+
+.PHONY: ui-install
+ui-install: build-factory-api kustomize kubectl ## Build, load and install UI in the named existing Kind stand.
+	DEV_CLUSTER="$(DEV_CLUSTER)" KIND="$(KIND)" CONTAINER_TOOL="$(CONTAINER_TOOL)" UI_IMG="$(UI_IMG)" bash hack/ui.sh
+
+.PHONY: ui-open
+ui-open: kubectl ## Forward the overview to http://localhost:8081 (keep this command running).
+	KUBECONFIG="$(CURDIR)/.cache/telemetry-$(DEV_CLUSTER).kubeconfig" $(KUBECTL) -n factory-ui port-forward --address=127.0.0.1 service/factory-api 8081:8081
 
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.

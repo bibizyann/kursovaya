@@ -9,3 +9,8 @@
 # Re-include Go module files
 !go.mod
 !go.sum
+
+# Embedded overview assets are part of the Go binary.
+!internal/factoryapi/web/*.html
+!internal/factoryapi/web/*.css
+!internal/factoryapi/web/*.js

@@ -294,6 +294,9 @@ var _ = Describe("Manager", Ordered, func() {
 			infrastructure := telemetryPodUIDs(Default)
 			_, err = utils.Run(exec.Command("kubectl", "apply", "-k", "config/overlays/telemetry"))
 			Expect(err).NotTo(HaveOccurred())
+			if os.Getenv("FACTORY_UI_E2E") == enabledEnvValue {
+				installOverview()
+			}
 			previousRevision := ""
 			for _, product := range []string{"board-a", "board-b"} {
 				if product == "board-b" {
@@ -362,6 +365,14 @@ var _ = Describe("Manager", Ordered, func() {
 					}, time.Minute, 2*time.Second).Should(Succeed())
 				}
 				previousRevision = acceptedRevision
+				if os.Getenv("FACTORY_UI_E2E") == enabledEnvValue {
+					Eventually(func(g Gomega) {
+						verifyOverview(g, product, acceptedRevision, os.Getenv("FACTORY_MONITORING_E2E") == enabledEnvValue)
+					}, time.Minute, 2*time.Second).Should(Succeed())
+				}
+			}
+			if os.Getenv("FACTORY_UI_E2E") == enabledEnvValue && os.Getenv("FACTORY_MONITORING_E2E") == enabledEnvValue {
+				verifyOverviewReceiverOutage(previousRevision)
 			}
 		})
 

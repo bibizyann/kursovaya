@@ -12,6 +12,8 @@ make build build-simulator
 
 ## Демонстрационный Kind-кластер
 
+Для визуального обзора уже запущенного участка используйте `make ui-install` и `make ui-open`; панель доступна на **http://localhost:8081**. Показания требуют telemetry/monitoring-профиля, а Kubernetes-состояние доступно и без мониторинга. Подробности: [Factory UI](factory-ui.md).
+
 ```bash
 make dev-up
 make dev-demo
