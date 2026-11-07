@@ -22,6 +22,7 @@
 
 ## Разработка и планирование
 
+- [План Factory UI и API](plans/factory-ui.md): аудит реализации, экраны, GitOps-переключение A/B, редактируемые рецепты и критерии готовности.
 - [Локальный стенд](runbooks/local-development.md).
 - [Запуск и проверка симуляторов оборудования](runbooks/equipment-simulation.md).
 - [Локальная связка через MQTT](runbooks/telemetry-mqtt.md): Mosquitto, симулятор, отдельный приёмник и проверка отказов.
