@@ -1,5 +1,4 @@
 //go:build e2e
-// +build e2e
 
 /*
 Copyright 2026.
@@ -67,6 +66,14 @@ var _ = BeforeSuite(func() {
 	_, err = utils.Run(cmd)
 	Expect(err).NotTo(HaveOccurred())
 	Expect(utils.LoadImageToKindClusterWithName("equipment-simulator:dev")).To(Succeed())
+
+	By("building and loading telemetry infrastructure")
+	_, err = utils.Run(exec.Command("make", "docker-build-telemetry-receiver"))
+	Expect(err).NotTo(HaveOccurred())
+	Expect(utils.LoadImageToKindClusterWithName("telemetry-receiver:dev")).To(Succeed())
+	_, err = utils.Run(exec.Command("docker", "pull", mqttBrokerImage))
+	Expect(err).NotTo(HaveOccurred())
+	Expect(utils.LoadImageToKindClusterWithName(mqttBrokerImage)).To(Succeed())
 
 	configureKubectlKubeRC()
 	setupCertManager()

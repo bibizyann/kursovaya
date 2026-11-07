@@ -27,7 +27,7 @@ import (
 func TestReadinessTracksModeAndCalibration(t *testing.T) {
 	t.Parallel()
 
-	server, err := New(Config{Kind: "camera", Product: "board-a", InitialMode: ModeNormal})
+	server, err := New(Config{Kind: legacyCameraKind, Product: telemetryProduct, InitialMode: ModeNormal})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}

@@ -1,0 +1,19 @@
+# Build the standalone telemetry receiver.
+FROM golang:1.26 AS builder
+ARG TARGETOS
+ARG TARGETARCH
+
+WORKDIR /workspace
+COPY go.mod go.mod
+COPY go.sum go.sum
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} \
+    go build -trimpath -ldflags="-s -w" -o telemetry-receiver ./cmd/telemetry-receiver
+
+FROM gcr.io/distroless/static:nonroot
+WORKDIR /
+COPY --from=builder /workspace/telemetry-receiver .
+USER 65532:65532
+EXPOSE 9091
+ENTRYPOINT ["/telemetry-receiver"]

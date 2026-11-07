@@ -2,6 +2,7 @@
 IMG ?= controller:latest
 # Image URL for the equipment simulator.
 SIMULATOR_IMG ?= equipment-simulator:dev
+RECEIVER_IMG ?= telemetry-receiver:dev
 # YEAR defines the year value used for substituting the YEAR placeholder in the boilerplate header.
 YEAR ?= $(shell date +%Y)
 
@@ -87,6 +88,7 @@ test-unit: ## Run fast tests that do not require a Kubernetes API server.
 # CertManager is installed by default; skip with:
 # - CERT_MANAGER_INSTALL_SKIP=true
 KIND_CLUSTER ?= factory-platform-test-e2e
+KIND_NODE_IMAGE ?= kindest/node:v1.35.0
 DEV_CLUSTER ?= factory-platform-dev
 DEV_OPERATOR_IMG ?= factory-platform:dev
 DEV_KIND_CONFIG ?= infra/kind/cluster-single.yaml
@@ -102,7 +104,7 @@ setup-test-e2e: ## Set up a Kind cluster for e2e tests if it does not exist
 			echo "Kind cluster '$(KIND_CLUSTER)' already exists. Skipping creation." ;; \
 		*) \
 			echo "Creating Kind cluster '$(KIND_CLUSTER)'..."; \
-			$(KIND) create cluster --name $(KIND_CLUSTER) --config infra/kind/cluster-single.yaml ;; \
+			$(KIND) create cluster --name $(KIND_CLUSTER) --image $(KIND_NODE_IMAGE) --config infra/kind/cluster-single.yaml ;; \
 	esac
 
 .PHONY: test-e2e
@@ -182,6 +184,19 @@ docker-build: ## Build docker image with the manager.
 .PHONY: docker-build-simulator
 docker-build-simulator: ## Build the equipment simulator image.
 	$(CONTAINER_TOOL) build -f Dockerfile.simulator -t ${SIMULATOR_IMG} .
+
+.PHONY: docker-build-telemetry-receiver
+docker-build-telemetry-receiver: ## Build the standalone telemetry receiver image.
+	$(CONTAINER_TOOL) build -f Dockerfile.telemetry-receiver -t ${RECEIVER_IMG} .
+
+.PHONY: telemetry-demo
+telemetry-demo: manifests kustomize kubectl ## Build and deploy the full eight-device Kind telemetry stand.
+	DEV_CLUSTER="$(DEV_CLUSTER)" DEV_OPERATOR_IMG="$(DEV_OPERATOR_IMG)" SIMULATOR_IMG="$(SIMULATOR_IMG)" RECEIVER_IMG="$(RECEIVER_IMG)" KIND="$(KIND)" KIND_NODE_IMAGE="$(KIND_NODE_IMAGE)" bash hack/telemetry-demo.sh
+
+.PHONY: telemetry-render
+telemetry-render: kustomize ## Validate that both telemetry Kustomize profiles render.
+	"$(KUSTOMIZE)" build config/telemetry > /dev/null
+	"$(KUSTOMIZE)" build config/overlays/telemetry > /dev/null
 
 .PHONY: docker-push
 docker-push: ## Push docker image with the manager.

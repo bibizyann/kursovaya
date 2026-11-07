@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mosquitto
+  labels:
+    app.kubernetes.io/name: mosquitto
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: mosquitto
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: mosquitto
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1883
+        runAsGroup: 1883
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: mosquitto
+          image: eclipse-mosquitto:2.0.22
+          imagePullPolicy: IfNotPresent
+          command: [mosquitto]
+          args: [-c, /etc/factory-mqtt/mosquitto.conf]
+          ports:
+            - name: mqtt
+              containerPort: 1883
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          readinessProbe:
+            tcpSocket:
+              port: mqtt
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: mqtt
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 200m
+              memory: 64Mi
+          volumeMounts:
+            - name: config
+              mountPath: /etc/factory-mqtt
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: mosquitto-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mosquitto
+  labels:
+    app.kubernetes.io/name: mosquitto
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: mosquitto
+  ports:
+    - name: mqtt
+      port: 1883
+      targetPort: mqtt

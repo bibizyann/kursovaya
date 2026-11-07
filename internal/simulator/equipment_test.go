@@ -3,17 +3,18 @@ package simulator
 import (
 	"context"
 	"encoding/json"
-	"factory.local/factory-platform/internal/equipment"
 	"net/http"
 	"net/http/httptest"
 	"sync"
 	"testing"
 	"time"
+
+	"factory.local/factory-platform/internal/equipment"
 )
 
 func TestCatalogOperations(t *testing.T) {
 	for _, d := range equipment.Catalog() {
-		for _, product := range []string{"board-a", "board-b"} {
+		for _, product := range []string{telemetryProduct, "board-b"} {
 			t.Run(d.ID+"/"+product, func(t *testing.T) {
 				s, err := New(Config{EquipmentID: d.ID, Product: product, Revision: "revision-123", InitialMode: ModeNormal})
 				if err != nil {
@@ -36,7 +37,7 @@ func TestCatalogOperations(t *testing.T) {
 }
 
 func TestSetupIsSeparateFromCalibration(t *testing.T) {
-	s, err := New(Config{EquipmentID: "manual-soldering-01", Product: "board-a", InitialMode: ModeUncalibrated, RequireSetup: true})
+	s, err := New(Config{EquipmentID: "manual-soldering-01", Product: telemetryProduct, InitialMode: ModeUncalibrated, RequireSetup: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +71,7 @@ func (c *notifyingContext) Done() <-chan struct{} {
 }
 
 func TestFaultDuringOperationDoesNotProduceObservation(t *testing.T) {
-	s, err := New(Config{EquipmentID: "reflow-oven-01", Product: "board-a", InitialMode: ModeSlow, Latency: time.Second})
+	s, err := New(Config{EquipmentID: "reflow-oven-01", Product: telemetryProduct, InitialMode: ModeSlow, Latency: time.Second})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,10 +92,10 @@ func TestFaultDuringOperationDoesNotProduceObservation(t *testing.T) {
 
 func TestCatalogConfigurationRejectsMistakes(t *testing.T) {
 	for _, cfg := range []Config{
-		{EquipmentID: "unknown", Product: "board-a", InitialMode: ModeNormal},
+		{EquipmentID: "unknown", Product: telemetryProduct, InitialMode: ModeNormal},
 		{EquipmentID: "programmer-01", Product: "typo", InitialMode: ModeNormal},
-		{EquipmentID: "programmer-01", Kind: "camera", Product: "board-a", InitialMode: ModeNormal},
-		{Kind: "typo", Product: "board-a", InitialMode: ModeNormal},
+		{EquipmentID: "programmer-01", Kind: legacyCameraKind, Product: telemetryProduct, InitialMode: ModeNormal},
+		{Kind: "typo", Product: telemetryProduct, InitialMode: ModeNormal},
 	} {
 		if _, err := New(cfg); err == nil {
 			t.Fatalf("accepted %+v", cfg)

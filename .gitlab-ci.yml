@@ -11,9 +11,9 @@ default:
     paths:
       - .cache/go-build
       - .cache/go-mod
-  variables:
-    GOCACHE: ${CI_PROJECT_DIR}/.cache/go-build
-    GOMODCACHE: ${CI_PROJECT_DIR}/.cache/go-mod
+variables:
+  GOCACHE: ${CI_PROJECT_DIR}/.cache/go-build
+  GOMODCACHE: ${CI_PROJECT_DIR}/.cache/go-mod
 
 before_script:
   - go mod download
@@ -23,6 +23,8 @@ lint:
   script:
     - make lint-config
     - make lint
+    - bin/golangci-lint run --build-tags=e2e
+    - make telemetry-render
 
 unit:
   stage: test
@@ -42,9 +44,35 @@ controller-integration:
 build:
   stage: build
   script:
-    - make build build-simulator
+    - make build build-simulator build-telemetry-receiver
   artifacts:
     paths:
       - bin/manager
       - bin/equipment-simulator
+      - bin/telemetry-receiver
+    expire_in: 7 days
+
+# Enable on a dedicated runner with local Docker, Go, Make, and Kind v0.31.0.
+# The tag must identify a runner that can reach its Docker-published Kind API.
+telemetry-e2e:
+  stage: test
+  tags: [factory-kind]
+  rules:
+    - if: '$FACTORY_KIND_E2E == "true"'
+  resource_group: factory-kind
+  timeout: 30m
+  script:
+    - export KUBECONFIG="$CI_PROJECT_DIR/.cache/e2e-$CI_JOB_ID.kubeconfig"
+    - export KIND_CLUSTER="factory-ci-$CI_JOB_ID"
+    - mkdir -p .cache
+    - make kubectl
+    - make test-mqtt
+    - CERT_MANAGER_INSTALL_SKIP=true make test-e2e
+  after_script:
+    - kind export logs --name "factory-ci-$CI_JOB_ID" .cache/kind-logs || true
+    - kind delete cluster --name "factory-ci-$CI_JOB_ID"
+  artifacts:
+    when: on_failure
+    paths:
+      - .cache/kind-logs
     expire_in: 7 days

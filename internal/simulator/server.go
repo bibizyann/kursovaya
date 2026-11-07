@@ -34,6 +34,8 @@ import (
 // Mode controls simulated equipment behavior.
 type Mode string
 
+const legacyCameraKind = "camera"
+
 const (
 	errorResponseKey = "error"
 
@@ -122,7 +124,7 @@ func New(config Config) (*Server, error) {
 			return nil, err
 		}
 		device, recipe, config.Kind = &d, &r, d.Kind
-	} else if config.Kind != "camera" && config.Kind != "tester" {
+	} else if config.Kind != legacyCameraKind && config.Kind != "tester" {
 		return nil, errors.New("select a catalog equipment ID or legacy kind camera/tester")
 	}
 	if strings.TrimSpace(config.Revision) == "" {

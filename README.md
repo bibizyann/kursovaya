@@ -23,7 +23,8 @@
 - метрики оператора из status и проверка готовности обновлённой ревизии;
 - unit-тесты и интеграционные тесты контроллера через `envtest`;
 - Kind-конфигурация с тремя edge-worker-узлами;
-- GitLab CI и контейнерные сборки оператора/симулятора.
+- GitLab CI и контейнерные сборки оператора, симулятора и приёмника;
+- профиль полного Kind-стенда с восемью MQTT-источниками (`make telemetry-demo`); его E2E требует работоспособного Kind-окружения.
 
 ## Архитектурный поток
 
@@ -35,7 +36,7 @@ UI -> Factory API -> Git -> Argo CD -> TechProcess -> Go operator -> workloads
 simulator -> MQTT -> Mosquitto -> telemetry-receiver /metrics -> Prometheus -> Grafana
 ```
 
-Схема показывает целевую архитектуру. Для телеметрии реализована локальная цепочка «симулятор → MQTT/Mosquitto → приёмник → `/metrics`». Prometheus и Grafana ещё предстоит развернуть. Запуск одного устройства описан в [MQTT-runbook](docs/runbooks/telemetry-mqtt.md). Реальное оборудование и его ПО описываются теоретически согласно [ADR 0006](docs/adr/0006-simulated-telemetry.md).
+Схема показывает целевую архитектуру. Для телеметрии реализована локальная цепочка «симулятор → MQTT/Mosquitto → приёмник → `/metrics`». Prometheus и Grafana ещё предстоит развернуть. Запуск восьми устройств в Kind описан в [инструкции стенда](docs/runbooks/telemetry-kind.md). Запуск одного устройства описан в [MQTT-runbook](docs/runbooks/telemetry-mqtt.md). Реальное оборудование и его ПО описываются теоретически согласно [ADR 0006](docs/adr/0006-simulated-telemetry.md).
 
 На текущем этапе прямое применение CR допускается для разработки. Целевой production-путь использует Git как единственный write channel.
 

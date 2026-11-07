@@ -3,6 +3,15 @@ package equipment
 
 import "fmt"
 
+const (
+	neoDenManufacturer         = "NeoDen"
+	programmingTestWorkstation = "programming-test"
+	opticalInspectorID         = "optical-inspector-01"
+	multimeterID               = "test-multimeter-01"
+	boardA                     = "board-a"
+	boardB                     = "board-b"
+)
+
 // Device is one simulated device in the reference workshop inventory.
 type Device struct {
 	ID           string `json:"id"`
@@ -14,14 +23,14 @@ type Device struct {
 }
 
 var inventory = [...]Device{
-	{"paste-printer-01", "paste-printer", "NeoDen", "YS350", "paste-printing", "paste-printing"},
-	{"component-placer-01", "component-placer", "NeoDen", "NeoDen4", "component-placement", "component-placement"},
-	{"reflow-oven-01", "reflow-oven", "NeoDen", "IN6", "reflow-soldering", "reflow-soldering"},
-	{"optical-inspector-01", "optical-inspector", "NeoDen", "ND880", "optical-inspection", "optical-inspection"},
+	{"paste-printer-01", "paste-printer", neoDenManufacturer, "YS350", "paste-printing", "paste-printing"},
+	{"component-placer-01", "component-placer", neoDenManufacturer, "NeoDen4", "component-placement", "component-placement"},
+	{"reflow-oven-01", "reflow-oven", neoDenManufacturer, "IN6", "reflow-soldering", "reflow-soldering"},
+	{opticalInspectorID, "optical-inspector", neoDenManufacturer, "ND880", "optical-inspection", "optical-inspection"},
 	{"manual-soldering-01", "manual-soldering", "Weller", "WT1010M", "manual-assembly", "manual-assembly"},
-	{"programmer-01", "programmer", "STMicroelectronics", "STLINK-V3SET", "programming-test", "programming-test"},
-	{"test-power-supply-01", "power-supply", "Keysight", "E36312A", "programming-test", "programming-test"},
-	{"test-multimeter-01", "multimeter", "Keysight", "34461A", "programming-test", "programming-test"},
+	{"programmer-01", "programmer", "STMicroelectronics", "STLINK-V3SET", programmingTestWorkstation, programmingTestWorkstation},
+	{"test-power-supply-01", "power-supply", "Keysight", "E36312A", programmingTestWorkstation, programmingTestWorkstation},
+	{multimeterID, "multimeter", "Keysight", "34461A", programmingTestWorkstation, programmingTestWorkstation},
 }
 
 // Catalog returns an independent copy of the workshop inventory.
@@ -65,12 +74,12 @@ func Profile(id, product string) (Recipe, error) {
 	if err != nil {
 		return Recipe{}, err
 	}
-	if product != "board-a" && product != "board-b" {
+	if product != boardA && product != boardB {
 		return Recipe{}, fmt.Errorf("unsupported product %q", product)
 	}
 	r := Recipe{ID: product + "/" + id + "/v1", Product: product}
 	components, peak, joints, voltage := 42, 240.0, 8, 3.3
-	if product == "board-b" {
+	if product == boardB {
 		components, peak, joints, voltage = 64, 245, 12, 5
 	}
 	switch device.Kind {

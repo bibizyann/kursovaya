@@ -24,6 +24,7 @@
 - [Локальный стенд](runbooks/local-development.md).
 - [Запуск и проверка симуляторов оборудования](runbooks/equipment-simulation.md).
 - [Локальная связка через MQTT](runbooks/telemetry-mqtt.md): Mosquitto, симулятор, отдельный приёмник и проверка отказов.
+- [Восемь устройств с MQTT в Kind](runbooks/telemetry-kind.md): образы, манифесты, A/B, проверки и CI.
 - [Инструменты разработки](toolchain.md).
 - [План реализации](../План.md).
 - [Исходная постановка дипломного проекта](../Диплом.md).

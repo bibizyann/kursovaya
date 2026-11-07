@@ -1,5 +1,4 @@
 //go:build e2e
-// +build e2e
 
 /*
 Copyright 2026.
@@ -104,6 +103,10 @@ var _ = Describe("Manager", Ordered, func() {
 	AfterEach(func() {
 		specReport := CurrentSpecReport()
 		if specReport.Failed() {
+			for _, name := range []string{mqttBrokerDeployment, "telemetry-receiver"} {
+				output, _ := utils.Run(exec.Command("kubectl", "logs", "deployment/"+name, "-n", telemetryNamespace))
+				_, _ = fmt.Fprintf(GinkgoWriter, "%s logs:\n%s\n", name, output)
+			}
 			By("Fetching controller manager pod logs")
 			cmd := exec.Command("kubectl", "logs", controllerPodName, "-n", namespace)
 			controllerLogs, err := utils.Run(cmd)
@@ -231,7 +234,8 @@ var _ = Describe("Manager", Ordered, func() {
 							"image": "curlimages/curl:latest",
 							"command": ["/bin/sh", "-c"],
 							"args": [
-								"for i in $(seq 1 30); do curl -v -k -H 'Authorization: Bearer %s' https://%s.%s.svc.cluster.local:8443/metrics && exit 0 || sleep 2; done; exit 1"
+								"for i in $(seq 1 30); do curl -v -k -H 'Authorization: Bearer %s' `+
+					`https://%s.%s.svc.cluster.local:8443/metrics && exit 0 || sleep 2; done; exit 1"
 							],
 							"securityContext": {
 								"readOnlyRootFilesystem": true,
@@ -273,22 +277,35 @@ var _ = Describe("Manager", Ordered, func() {
 			Eventually(verifyMetricsAvailable, 2*time.Minute).Should(Succeed())
 		})
 
-		It("runs all eight equipment profiles and switches recipes from A to B", func() {
+		It("publishes all eight equipment profiles through MQTT and preserves infrastructure across A to B", func() {
 			DeferCleanup(func() {
 				_, _ = utils.Run(exec.Command("kubectl", "delete", "namespace", "factory-demo", "--ignore-not-found"))
 			})
-			_, err := utils.Run(exec.Command("kubectl", "apply", "-k", "config/samples"))
+			DeferCleanup(func() {
+				_, _ = utils.Run(exec.Command("kubectl", "delete", "namespace", telemetryNamespace, "--ignore-not-found"))
+			})
+			_, err := utils.Run(exec.Command("kubectl", "apply", "-k", "config/telemetry"))
+			Expect(err).NotTo(HaveOccurred())
+			for _, name := range []string{mqttBrokerDeployment, "telemetry-receiver"} {
+				_, err = utils.Run(exec.Command("kubectl", "rollout", "status", "deployment/"+name,
+					"-n", telemetryNamespace, "--timeout=120s"))
+				Expect(err).NotTo(HaveOccurred())
+			}
+			infrastructure := telemetryPodUIDs(Default)
+			_, err = utils.Run(exec.Command("kubectl", "apply", "-k", "config/overlays/telemetry"))
 			Expect(err).NotTo(HaveOccurred())
 			previousRevision := ""
 			for _, product := range []string{"board-a", "board-b"} {
 				if product == "board-b" {
 					patch := `{"spec":{"templateRef":{"name":"board-b"},"parameters":{"product":"board-b"}}}`
-					_, err = utils.Run(exec.Command("kubectl", "patch", "techprocess", "line-one", "-n", "factory-demo", "--type=merge", "-p", patch))
+					_, err = utils.Run(exec.Command("kubectl", "patch", "techprocess", "line-one", "-n", "factory-demo",
+						"--type=merge", "-p", patch))
 					Expect(err).NotTo(HaveOccurred())
 				}
 				var acceptedRevision string
 				Eventually(func(g Gomega) {
-					data, err := utils.Run(exec.Command("kubectl", "get", "techprocess", "line-one", "-n", "factory-demo", "-o", "json"))
+					data, err := utils.Run(exec.Command("kubectl", "get", "techprocess", "line-one",
+						"-n", "factory-demo", "-o", "json"))
 					g.Expect(err).NotTo(HaveOccurred())
 					var process productionv1alpha1.TechProcess
 					g.Expect(json.Unmarshal([]byte(data), &process)).To(Succeed())
@@ -302,7 +319,8 @@ var _ = Describe("Manager", Ordered, func() {
 					g.Expect(process.Status.CompletedAt.Before(process.Status.StartedAt)).To(BeFalse())
 					g.Expect(process.Status.AppliedRevision).NotTo(Equal(previousRevision))
 					acceptedRevision = process.Status.AppliedRevision
-					data, err = utils.Run(exec.Command("kubectl", "get", "pods", "-n", "factory-demo", "-l", "factory.local/tech-process=line-one", "-o", "json"))
+					data, err = utils.Run(exec.Command("kubectl", "get", "pods", "-n", "factory-demo",
+						"-l", "factory.local/tech-process=line-one", "-o", "json"))
 					g.Expect(err).NotTo(HaveOccurred())
 					var pods corev1.PodList
 					g.Expect(json.Unmarshal([]byte(data), &pods)).To(Succeed())
@@ -334,6 +352,10 @@ var _ = Describe("Manager", Ordered, func() {
 						g.Expect(seen[d.ID]).To(BeTrue())
 					}
 				}, 3*time.Minute, 2*time.Second).Should(Succeed())
+				Eventually(func(g Gomega) {
+					verifyEquipmentMetrics(g, product, acceptedRevision)
+				}, time.Minute, 2*time.Second).Should(Succeed())
+				Expect(telemetryPodUIDs(Default)).To(Equal(infrastructure), "A/B must not replace platform pods")
 				previousRevision = acceptedRevision
 			}
 		})

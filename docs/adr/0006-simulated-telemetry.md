@@ -43,7 +43,7 @@ Use [Eclipse Paho v1.5.1](https://github.com/eclipse-paho/paho.mqtt.golang/tree/
 
 The publisher retains at most one pending snapshot and one in flight. New pending data replaces old pending data; disconnected offers are dropped. Every connection uses a new client and memory store with a clean session. Disable library-managed reconnect and reconnect explicitly, discarding pending publications, so reconnect does not replay old client history. A packet sent before disconnection may already have reached the broker; receiver deduplication remains necessary.
 
-Keep generator, network worker, and HTTP lifecycle separate. Bound connection, acknowledgment, and shutdown waits. Broker outage does not block simulator operation generation or change readiness. Retained data is subject to the same source-time checks as live delivery. The local [Mosquitto configuration](../../infra/mqtt/mosquitto.conf) disables disk persistence and bounds packet size; deployment-wide installation remains step 6.
+Keep generator, network worker, and HTTP lifecycle separate. Bound connection, acknowledgment, and shutdown waits. Broker outage does not block simulator operation generation or change readiness. Retained data is subject to the same source-time checks as live delivery. The local [Mosquitto configuration](../../infra/mqtt/mosquitto.conf) disables disk persistence and bounds packet size; the Kind deployment uses the same limits in `config/telemetry`.
 
 ## Operator status and metrics
 
@@ -61,6 +61,12 @@ An outage produces an unknown monitoring state and missing measurements. After r
 
 Sequential workstation rollout and automatic rollback remain separate operator tasks from ADR 0004. This monitoring decision neither implements them nor changes Git ownership from ADR 0002. K3s/KubeEdge and cloud deployment are optional extensions beyond the local stand.
 
+## Kind deployment
+
+Step 6 provides a non-root receiver image, independent Mosquitto/receiver Deployments and ClusterIP Services in `factory-telemetry`, and an opt-in A/B sample overlay with eight publishers and explicit seeds. Both platform Deployments use one replica and Recreate without persistent volumes. Receiver probes test HTTP process health, not MQTT connectivity. Anonymous MQTT is restricted to the local stand; real deployment security remains separate.
+
+The demo script targets a named Kind cluster with its own kubeconfig and uses temporary overlays for image overrides. The A/B e2e scenario checks all eight metric streams and stable platform pod identities. GitLab CI renders manifests and builds all three binaries; Docker/MQTT/Kind checks require the explicitly enabled dedicated runner. See the [Kind runbook](../runbooks/telemetry-kind.md).
+
 ## Implementation sequence
 
 1. Contract, validation, fixtures, and scope documentation.
@@ -72,7 +78,7 @@ Sequential workstation rollout and automatic rollback remain separate operator t
 7. Prometheus installation and provisioned Grafana dashboards.
 8. End-to-end fault scenarios and a reproducible demonstration runbook.
 
-Steps 1–5 are implemented: contract, receiver, generator, MQTT transport, operator metrics, and target-revision readiness checks. The single-device Mosquitto pipeline and reconnection are verified locally. Subsequent steps require the user's explicit approval after each completed step. The current implementation status is tracked in the [project plan](../../План.md).
+Steps 1–5 are implemented: contract, receiver, generator, MQTT transport, operator metrics, and target-revision readiness checks. The single-device Mosquitto pipeline and reconnection are verified locally. Step 6 code and deployment assets are implemented. Eight A/B streams were verified in an isolated Docker network with unchanged broker/receiver containers; the local Kind e2e run remains blocked by the host inotify limit. Subsequent steps require the user's explicit approval after each completed step. The current implementation status is tracked in the [project plan](../../План.md).
 
 ## Consequences
 
