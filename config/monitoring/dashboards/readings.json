@@ -1,0 +1,517 @@
+{
+  "uid": "factory-readings",
+  "title": "Factory / Readings",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": false,
+  "tags": [
+    "factory",
+    "simulation"
+  ],
+  "timezone": "browser",
+  "refresh": "5s",
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "namespace",
+        "label": "Namespace",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(factory_equipment_telemetry_fresh, namespace)",
+          "refId": "namespace"
+        },
+        "definition": "label_values(factory_equipment_telemetry_fresh, namespace)",
+        "refresh": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "options": [],
+        "sort": 1
+      },
+      {
+        "name": "process",
+        "label": "Tech process",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(factory_equipment_telemetry_fresh{namespace=~\"$namespace\"}, tech_process)",
+          "refId": "process"
+        },
+        "definition": "label_values(factory_equipment_telemetry_fresh{namespace=~\"$namespace\"}, tech_process)",
+        "refresh": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "options": [],
+        "sort": 1
+      },
+      {
+        "name": "workstation",
+        "label": "Workstation",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(factory_equipment_telemetry_fresh{namespace=~\"$namespace\",tech_process=~\"$process\"}, workstation)",
+          "refId": "workstation"
+        },
+        "definition": "label_values(factory_equipment_telemetry_fresh{namespace=~\"$namespace\",tech_process=~\"$process\"}, workstation)",
+        "refresh": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "options": [],
+        "sort": 1
+      },
+      {
+        "name": "equipment",
+        "label": "Equipment",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(factory_equipment_telemetry_fresh{namespace=~\"$namespace\",tech_process=~\"$process\",workstation=~\"$workstation\"}, equipment_id)",
+          "refId": "equipment"
+        },
+        "definition": "label_values(factory_equipment_telemetry_fresh{namespace=~\"$namespace\",tech_process=~\"$process\",workstation=~\"$workstation\"}, equipment_id)",
+        "refresh": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "options": [],
+        "sort": 1
+      }
+    ]
+  },
+  "panels": [
+    {
+      "title": "Reflow temperature",
+      "type": "timeseries",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "noValue": "Unknown",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "spanNulls": false,
+            "lineWidth": 2,
+            "fillOpacity": 5
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "factory_temperature_celsius{job=\"factory-telemetry\",namespace=~\"$namespace\",tech_process=~\"$process\",workstation=~\"$workstation\",equipment_id=~\"$equipment\"} and on(namespace,tech_process,workstation,equipment_id) (factory:equipment_fresh{namespace=~\"$namespace\",tech_process=~\"$process\",workstation=~\"$workstation\",equipment_id=~\"$equipment\"} == 1)",
+          "legendFormat": "{{equipment_id}} actual",
+          "range": true,
+          "instant": false,
+          "format": "time_series"
+        },
+        {
+          "refId": "B",
+          "expr": "factory_target_temperature_celsius{job=\"factory-telemetry\",namespace=~\"$namespace\",tech_process=~\"$process\",workstation=~\"$workstation\",equipment_id=~\"$equipment\"} and on(namespace,tech_process,workstation,equipment_id) (factory:equipment_fresh{namespace=~\"$namespace\",tech_process=~\"$process\",workstation=~\"$workstation\",equipment_id=~\"$equipment\"} == 1)",
+          "legendFormat": "{{equipment_id}} target",
+          "range": true,
+          "instant": false,
+          "format": "time_series"
+        }
+      ],
+      "id": 1,
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "title": "Voltage and limits",
+      "type": "timeseries",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "volt",
+          "noValue": "Unknown",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "spanNulls": false,
+            "lineWidth": 2,
+            "fillOpacity": 5
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "factory_voltage_volts{job=\"factory-telemetry\",namespace=~\"$namespace\",tech_process=~\"$process\",workstation=~\"$workstation\",equipment_id=~\"$equipment\"} and on(namespace,tech_process,workstation,equipment_id) (factory:equipment_fresh{namespace=~\"$namespace\",tech_process=~\"$process\",workstation=~\"$workstation\",equipment_id=~\"$equipment\"} == 1)",
+          "legendFormat": "{{equipment_id}} actual",
+          "range": true,
+          "instant": false,
+          "format": "time_series"
+        },
+        {
+          "refId": "B",
+          "expr": "factory_target_voltage_volts{job=\"factory-telemetry\",namespace=~\"$namespace\",tech_process=~\"$process\",workstation=~\"$workstation\",equipment_id=~\"$equipment\"} and on(namespace,tech_process,workstation,equipment_id) (factory:equipment_fresh{namespace=~\"$namespace\",tech_process=~\"$process\",workstation=~\"$workstation\",equipment_id=~\"$equipment\"} == 1)",
+          "legendFormat": "{{equipment_id}} target",
+          "range": true,
+          "instant": false,
+          "format": "time_series"
+        },
+        {
+          "refId": "C",
+          "expr": "factory_min_voltage_volts{job=\"factory-telemetry\",namespace=~\"$namespace\",tech_process=~\"$process\",workstation=~\"$workstation\",equipment_id=~\"$equipment\"} and on(namespace,tech_process,workstation,equipment_id) (factory:equipment_fresh{namespace=~\"$namespace\",tech_process=~\"$process\",workstation=~\"$workstation\",equipment_id=~\"$equipment\"} == 1)",
+          "legendFormat": "{{equipment_id}} min",
+          "range": true,
+          "instant": false,
+          "format": "time_series"
+        },
+        {
+          "refId": "D",
+          "expr": "factory_max_voltage_volts{job=\"factory-telemetry\",namespace=~\"$namespace\",tech_process=~\"$process\",workstation=~\"$workstation\",equipment_id=~\"$equipment\"} and on(namespace,tech_process,workstation,equipment_id) (factory:equipment_fresh{namespace=~\"$namespace\",tech_process=~\"$process\",workstation=~\"$workstation\",equipment_id=~\"$equipment\"} == 1)",
+          "legendFormat": "{{equipment_id}} max",
+          "range": true,
+          "instant": false,
+          "format": "time_series"
+        }
+      ],
+      "id": 2,
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "title": "Current",
+      "type": "timeseries",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "amp",
+          "noValue": "Unknown",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "spanNulls": false,
+            "lineWidth": 2,
+            "fillOpacity": 5
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "factory_current_amperes{job=\"factory-telemetry\",namespace=~\"$namespace\",tech_process=~\"$process\",workstation=~\"$workstation\",equipment_id=~\"$equipment\"} and on(namespace,tech_process,workstation,equipment_id) (factory:equipment_fresh{namespace=~\"$namespace\",tech_process=~\"$process\",workstation=~\"$workstation\",equipment_id=~\"$equipment\"} == 1)",
+          "legendFormat": "{{equipment_id}} actual",
+          "range": true,
+          "instant": false,
+          "format": "time_series"
+        },
+        {
+          "refId": "B",
+          "expr": "factory_current_limit_amperes{job=\"factory-telemetry\",namespace=~\"$namespace\",tech_process=~\"$process\",workstation=~\"$workstation\",equipment_id=~\"$equipment\"} and on(namespace,tech_process,workstation,equipment_id) (factory:equipment_fresh{namespace=~\"$namespace\",tech_process=~\"$process\",workstation=~\"$workstation\",equipment_id=~\"$equipment\"} == 1)",
+          "legendFormat": "{{equipment_id}} limit",
+          "range": true,
+          "instant": false,
+          "format": "time_series"
+        }
+      ],
+      "id": 3,
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "title": "Last operation duration",
+      "type": "timeseries",
+      "description": "Absent until the first completed operation. Synthetic duration, not a measurement of real manufacturing throughput.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "Unknown",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "spanNulls": false,
+            "lineWidth": 2,
+            "fillOpacity": 5
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "factory_last_operation_duration_seconds{job=\"factory-telemetry\",namespace=~\"$namespace\",tech_process=~\"$process\",workstation=~\"$workstation\",equipment_id=~\"$equipment\"} and on(namespace,tech_process,workstation,equipment_id) (factory:equipment_fresh{namespace=~\"$namespace\",tech_process=~\"$process\",workstation=~\"$workstation\",equipment_id=~\"$equipment\"} == 1)",
+          "legendFormat": "{{equipment_id}}",
+          "range": true,
+          "instant": false,
+          "format": "time_series"
+        }
+      ],
+      "id": 4,
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "title": "Power supply output enabled",
+      "type": "state-timeline",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Unknown",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "spanNulls": false,
+            "lineWidth": 2,
+            "fillOpacity": 5
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "No",
+                  "color": "red",
+                  "index": 0
+                },
+                "1": {
+                  "text": "Yes",
+                  "color": "green",
+                  "index": 1
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "mergeValues": true,
+        "showValue": "auto",
+        "rowHeight": 0.8,
+        "spanNulls": false,
+        "legend": {
+          "showLegend": true
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "factory_output_enabled{job=\"factory-telemetry\",namespace=~\"$namespace\",tech_process=~\"$process\",workstation=~\"$workstation\",equipment_id=~\"$equipment\"} and on(namespace,tech_process,workstation,equipment_id) (factory:equipment_fresh{namespace=~\"$namespace\",tech_process=~\"$process\",workstation=~\"$workstation\",equipment_id=~\"$equipment\"} == 1)",
+          "legendFormat": "{{equipment_id}}",
+          "range": true,
+          "instant": false,
+          "format": "time_series"
+        }
+      ],
+      "id": 5,
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "title": "Oven temperature ready",
+      "type": "state-timeline",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Unknown",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "spanNulls": false,
+            "lineWidth": 2,
+            "fillOpacity": 5
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "No",
+                  "color": "red",
+                  "index": 0
+                },
+                "1": {
+                  "text": "Yes",
+                  "color": "green",
+                  "index": 1
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "mergeValues": true,
+        "showValue": "auto",
+        "rowHeight": 0.8,
+        "spanNulls": false,
+        "legend": {
+          "showLegend": true
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "factory_temperature_ready{job=\"factory-telemetry\",namespace=~\"$namespace\",tech_process=~\"$process\",workstation=~\"$workstation\",equipment_id=~\"$equipment\"} and on(namespace,tech_process,workstation,equipment_id) (factory:equipment_fresh{namespace=~\"$namespace\",tech_process=~\"$process\",workstation=~\"$workstation\",equipment_id=~\"$equipment\"} == 1)",
+          "legendFormat": "{{equipment_id}}",
+          "range": true,
+          "instant": false,
+          "format": "time_series"
+        }
+      ],
+      "id": 6,
+      "gridPos": {
+        "x": 12,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      }
+    }
+  ],
+  "links": [
+    {
+      "title": "Equipment",
+      "url": "/d/factory-equipment",
+      "keepTime": true,
+      "includeVars": true
+    },
+    {
+      "title": "Readings",
+      "url": "/d/factory-readings",
+      "keepTime": true,
+      "includeVars": true
+    },
+    {
+      "title": "Tech processes",
+      "url": "/d/factory-processes",
+      "keepTime": true,
+      "includeVars": true
+    }
+  ]
+}

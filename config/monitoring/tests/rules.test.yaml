@@ -1,0 +1,140 @@
+rule_files:
+- rules.yaml
+evaluation_interval: 5s
+tests:
+- name: fresh fault is not stale telemetry
+  interval: 5s
+  input_series:
+  - series: up{job="factory-telemetry"}
+    values: 1x12
+  - series: up{job="factory-operator"}
+    values: 1x12
+  - series: factory_equipment_telemetry_fresh{namespace="factory-demo",tech_process="line-one",workstation="reflow-soldering",equipment_id="reflow-oven-01",job="factory-telemetry"}
+    values: 1x12
+  - series: factory_equipment_healthy{namespace="factory-demo",tech_process="line-one",workstation="reflow-soldering",equipment_id="reflow-oven-01",job="factory-telemetry"}
+    values: '0x12'
+  promql_expr_test:
+  - expr: factory:equipment_state
+    eval_time: 35s
+    exp_samples:
+    - labels: factory:equipment_state{namespace="factory-demo",tech_process="line-one",workstation="reflow-soldering",equipment_id="reflow-oven-01",job="factory-telemetry"}
+      value: 0
+  alert_rule_test:
+  - eval_time: 35s
+    alertname: FactoryEquipmentUnhealthy
+    exp_alerts:
+    - exp_labels:
+        namespace: factory-demo
+        tech_process: line-one
+        workstation: reflow-soldering
+        equipment_id: reflow-oven-01
+        job: factory-telemetry
+        severity: critical
+      exp_annotations:
+        summary: Fresh telemetry reports a fault on reflow-oven-01.
+  - eval_time: 35s
+    alertname: FactoryEquipmentTelemetryStale
+    exp_alerts: []
+- name: stale data is unknown and suppresses equipment fault
+  interval: 5s
+  input_series:
+  - series: up{job="factory-telemetry"}
+    values: 1x12
+  - series: up{job="factory-operator"}
+    values: 1x12
+  - series: factory_equipment_telemetry_fresh{namespace="factory-demo",tech_process="line-one",workstation="reflow-soldering",equipment_id="reflow-oven-01",job="factory-telemetry"}
+    values: '0x12'
+  - series: factory_equipment_healthy{namespace="factory-demo",tech_process="line-one",workstation="reflow-soldering",equipment_id="reflow-oven-01",job="factory-telemetry"}
+    values: '0x12'
+  promql_expr_test:
+  - expr: factory:equipment_state
+    eval_time: 35s
+    exp_samples:
+    - labels: factory:equipment_state{namespace="factory-demo",tech_process="line-one",workstation="reflow-soldering",equipment_id="reflow-oven-01",job="factory-telemetry"}
+      value: 2
+  alert_rule_test:
+  - eval_time: 35s
+    alertname: FactoryEquipmentUnhealthy
+    exp_alerts: []
+  - eval_time: 35s
+    alertname: FactoryEquipmentTelemetryStale
+    exp_alerts:
+    - exp_labels:
+        namespace: factory-demo
+        tech_process: line-one
+        workstation: reflow-soldering
+        equipment_id: reflow-oven-01
+        job: factory-telemetry
+        severity: warning
+      exp_annotations:
+        summary: No fresh telemetry for reflow-oven-01.
+- name: receiver down suppresses even last healthy values
+  interval: 5s
+  input_series:
+  - series: up{job="factory-telemetry"}
+    values: '0x12'
+  - series: up{job="factory-operator"}
+    values: 1x12
+  - series: factory_equipment_telemetry_fresh{namespace="factory-demo",tech_process="line-one",workstation="reflow-soldering",equipment_id="reflow-oven-01",job="factory-telemetry"}
+    values: 1x12
+  - series: factory_equipment_healthy{namespace="factory-demo",tech_process="line-one",workstation="reflow-soldering",equipment_id="reflow-oven-01",job="factory-telemetry"}
+    values: 1x12
+  promql_expr_test:
+  - expr: factory:equipment_state
+    eval_time: 35s
+    exp_samples: []
+  - expr: factory:equipment_fresh
+    eval_time: 35s
+    exp_samples: []
+  alert_rule_test:
+  - eval_time: 35s
+    alertname: FactoryTelemetryReceiverUnavailable
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+      exp_annotations:
+        summary: Telemetry receiver cannot be scraped; equipment state is unknown.
+  - eval_time: 35s
+    alertname: FactoryEquipmentUnhealthy
+    exp_alerts: []
+- name: missing discovery target is unavailable
+  interval: 5s
+  input_series: []
+  promql_expr_test:
+  - expr: factory:receiver_up
+    eval_time: 35s
+    exp_samples:
+    - labels: factory:receiver_up
+      value: 0
+  alert_rule_test:
+  - eval_time: 35s
+    alertname: FactoryTelemetryReceiverUnavailable
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+      exp_annotations:
+        summary: Telemetry receiver cannot be scraped; equipment state is unknown.
+- name: counter reset still produces nonnegative rate
+  interval: 5s
+  input_series:
+  - series: up{job="factory-telemetry"}
+    values: 1x12
+  - series: up{job="factory-operator"}
+    values: 1x12
+  - series: factory_equipment_telemetry_fresh{namespace="factory-demo",tech_process="line-one",workstation="reflow-soldering",equipment_id="reflow-oven-01",job="factory-telemetry"}
+    values: 1x12
+  - series: factory_equipment_healthy{namespace="factory-demo",tech_process="line-one",workstation="reflow-soldering",equipment_id="reflow-oven-01",job="factory-telemetry"}
+    values: 1x12
+  - series: factory_operations_total{namespace="factory-demo",tech_process="line-one",workstation="reflow-soldering",equipment_id="reflow-oven-01",job="factory-telemetry"}
+    values: 0 10 20 0 5 10 15 20 25 30 35 40 45
+  promql_expr_test:
+  - expr: factory:operations_per_minute > bool 0
+    eval_time: 35s
+    exp_samples:
+    - labels: '{namespace="factory-demo",tech_process="line-one",workstation="reflow-soldering",equipment_id="reflow-oven-01",job="factory-telemetry"}'
+      value: 1
+  - expr: resets(factory_operations_total[1m])
+    eval_time: 35s
+    exp_samples:
+    - labels: '{namespace="factory-demo",tech_process="line-one",workstation="reflow-soldering",equipment_id="reflow-oven-01",job="factory-telemetry"}'
+      value: 1

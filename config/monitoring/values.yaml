@@ -1,0 +1,95 @@
+fullnameOverride: factory-monitoring
+defaultRules:
+  create: false
+alertmanager:
+  enabled: false
+kubernetesServiceMonitors:
+  enabled: false
+kubeStateMetrics:
+  enabled: false
+nodeExporter:
+  enabled: false
+prometheusOperator:
+  admissionWebhooks:
+    enabled: false
+  tls:
+    enabled: false
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
+grafana:
+  fullnameOverride: factory-grafana
+  defaultDashboardsEnabled: false
+  deleteDatasources:
+    - name: Alertmanager
+      orgId: 1
+  admin:
+    existingSecret: factory-grafana-admin
+  persistence:
+    enabled: false
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+  grafana.ini:
+    users:
+      allow_sign_up: false
+    auth.anonymous:
+      enabled: false
+    analytics:
+      reporting_enabled: false
+      check_for_updates: false
+  sidecar:
+    dashboards:
+      enabled: true
+      searchNamespace: factory-monitoring
+      provider:
+        folder: Factory
+        folderUid: factory
+        allowUiUpdates: false
+    datasources:
+      alertmanager:
+        enabled: false
+      uid: prometheus
+      defaultDatasourceScrapeInterval: 5s
+      url: http://factory-monitoring-prometheus.factory-monitoring.svc:9090
+prometheus:
+  serviceAccount:
+    name: factory-prometheus
+  prometheusSpec:
+    replicas: 1
+    scrapeInterval: 5s
+    evaluationInterval: 5s
+    retention: 7d
+    retentionSize: 1GB
+    serviceMonitorSelector:
+      matchLabels:
+        factory.local/monitoring: "true"
+    serviceMonitorNamespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: factory-monitoring
+    ruleSelector:
+      matchLabels:
+        factory.local/monitoring: "true"
+    ruleNamespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: factory-monitoring
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        memory: 1Gi
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: standard
+          accessModes: [ReadWriteOnce]
+          resources:
+            requests:
+              storage: 2Gi

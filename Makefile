@@ -198,6 +198,34 @@ telemetry-render: kustomize ## Validate that both telemetry Kustomize profiles r
 	"$(KUSTOMIZE)" build config/telemetry > /dev/null
 	"$(KUSTOMIZE)" build config/overlays/telemetry > /dev/null
 
+HELM ?= $(LOCALBIN)/helm
+HELM_VERSION ?= v4.2.3
+
+.PHONY: monitoring-render
+monitoring-render: kustomize helm ## Render the pinned Prometheus/Grafana chart and factory resources.
+	HELM="$(HELM)" bash hack/monitoring.sh render
+
+.PHONY: monitoring-install
+monitoring-install: kustomize kubectl helm ## Install monitoring into the named, existing Kind stand.
+	DEV_CLUSTER="$(DEV_CLUSTER)" KIND="$(KIND)" HELM="$(HELM)" bash hack/monitoring.sh install
+
+.PHONY: test-monitoring
+test-monitoring: ## Check PromQL rules and dashboards using a temporary Prometheus Docker container.
+	go test -tags=monitoring ./test/monitoring -count=1 -v
+
+.PHONY: grafana-open
+grafana-open: kubectl ## Forward Grafana to http://localhost:3000 (keep this command running).
+	KUBECONFIG="$(CURDIR)/.cache/telemetry-$(DEV_CLUSTER).kubeconfig" $(KUBECTL) -n factory-monitoring port-forward service/factory-grafana 3000:80
+
+.PHONY: grafana-password
+grafana-password: kubectl ## Print the generated local Grafana admin password.
+	@KUBECONFIG="$(CURDIR)/.cache/telemetry-$(DEV_CLUSTER).kubeconfig" $(KUBECTL) -n factory-monitoring get secret factory-grafana-admin -o jsonpath='{.data.admin-password}' | base64 --decode
+	@echo
+
+.PHONY: prometheus-open
+prometheus-open: kubectl ## Forward Prometheus to http://localhost:9090 (keep this command running).
+	KUBECONFIG="$(CURDIR)/.cache/telemetry-$(DEV_CLUSTER).kubeconfig" $(KUBECTL) -n factory-monitoring port-forward service/factory-monitoring-prometheus 9090:9090
+
 .PHONY: docker-push
 docker-push: ## Push docker image with the manager.
 	$(CONTAINER_TOOL) push ${IMG}
@@ -301,6 +329,22 @@ $(KUBECTL): $(LOCALBIN)
 		chmod +x "$$target"; \
 	fi; \
 	ln -sf "$$(realpath "$$target")" "$(KUBECTL)"
+
+.PHONY: helm
+helm: $(HELM) ## Download the pinned Helm CLI locally if necessary.
+$(HELM): $(LOCALBIN)
+	@set -e; \
+	target="$(LOCALBIN)/helm-$(HELM_VERSION)"; \
+	if [ ! -f "$$target" ]; then \
+		tmp_dir=$$(mktemp -d); trap 'rm -rf "$$tmp_dir"' EXIT; \
+		archive="helm-$(HELM_VERSION)-$(KUBECTL_OS)-$(KUBECTL_ARCH).tar.gz"; \
+		curl -fsSL "https://get.helm.sh/$$archive" -o "$$tmp_dir/$$archive"; \
+		curl -fsSL "https://get.helm.sh/$$archive.sha256sum" -o "$$tmp_dir/checksum"; \
+		(cd "$$tmp_dir" && sha256sum --check checksum); \
+		tar -xzf "$$tmp_dir/$$archive" -C "$$tmp_dir"; \
+		install -m 755 "$$tmp_dir/$(KUBECTL_OS)-$(KUBECTL_ARCH)/helm" "$$target"; \
+	fi; \
+	ln -sf "$$target" "$(HELM)"
 
 .PHONY: kustomize
 kustomize: $(KUSTOMIZE) ## Download kustomize locally if necessary.

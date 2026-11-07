@@ -1,0 +1,570 @@
+{
+  "uid": "factory-processes",
+  "title": "Factory / Tech processes",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": false,
+  "tags": [
+    "factory",
+    "simulation"
+  ],
+  "timezone": "browser",
+  "refresh": "5s",
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "namespace",
+        "label": "Namespace",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(factory_techprocess_status_current, namespace)",
+          "refId": "namespace"
+        },
+        "definition": "label_values(factory_techprocess_status_current, namespace)",
+        "refresh": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "options": [],
+        "sort": 1
+      },
+      {
+        "name": "process",
+        "label": "Tech process",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(factory_techprocess_status_current{namespace=~\"$namespace\"}, tech_process)",
+          "refId": "process"
+        },
+        "definition": "label_values(factory_techprocess_status_current{namespace=~\"$namespace\"}, tech_process)",
+        "refresh": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "options": [],
+        "sort": 1
+      }
+    ]
+  },
+  "panels": [
+    {
+      "title": "Operator metrics availability",
+      "type": "stat",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Unknown",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "spanNulls": false,
+            "lineWidth": 2,
+            "fillOpacity": 5
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Unavailable",
+                  "color": "red",
+                  "index": 0
+                },
+                "1": {
+                  "text": "Available",
+                  "color": "green",
+                  "index": 1
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "factory:operator_up",
+          "legendFormat": "Operator",
+          "range": false,
+          "instant": true,
+          "format": "time_series"
+        }
+      ],
+      "id": 1,
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "title": "Ready",
+      "type": "stat",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Unknown",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "spanNulls": false,
+            "lineWidth": 2,
+            "fillOpacity": 5
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Not ready",
+                  "color": "orange",
+                  "index": 0
+                },
+                "1": {
+                  "text": "Ready",
+                  "color": "green",
+                  "index": 1
+                },
+                "2": {
+                  "text": "Unknown",
+                  "color": "gray",
+                  "index": 2
+                }
+              }
+            }
+          ],
+          "displayName": "${__field.labels.tech_process}"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(max by(namespace,tech_process) (factory_techprocess_condition{job=\"factory-operator\",namespace=~\"$namespace\",tech_process=~\"$process\",condition=\"Ready\",status=\"true\"}) + 2 * max by(namespace,tech_process) (factory_techprocess_condition{job=\"factory-operator\",namespace=~\"$namespace\",tech_process=~\"$process\",condition=\"Ready\",status=\"unknown\"})) and on() (factory:operator_up == 1)",
+          "legendFormat": "{{tech_process}}",
+          "range": false,
+          "instant": true,
+          "format": "time_series"
+        }
+      ],
+      "id": 2,
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "title": "Workload instances",
+      "type": "timeseries",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Unknown",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "spanNulls": false,
+            "lineWidth": 2,
+            "fillOpacity": 5
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "factory_techprocess_desired_workloads{job=\"factory-operator\",namespace=~\"$namespace\",tech_process=~\"$process\"} and on() (factory:operator_up == 1)",
+          "legendFormat": "{{tech_process}} desired",
+          "range": true,
+          "instant": false,
+          "format": "time_series"
+        },
+        {
+          "refId": "B",
+          "expr": "factory_techprocess_ready_workloads{job=\"factory-operator\",namespace=~\"$namespace\",tech_process=~\"$process\"} and on() (factory:operator_up == 1)",
+          "legendFormat": "{{tech_process}} ready",
+          "range": true,
+          "instant": false,
+          "format": "time_series"
+        }
+      ],
+      "id": 3,
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "title": "Completed rollout duration",
+      "type": "timeseries",
+      "description": "Gauge from persisted completedAt - startedAt. Not a histogram: brief rollouts between scrapes may be missed.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "Unknown",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "spanNulls": false,
+            "lineWidth": 2,
+            "fillOpacity": 5
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "factory_techprocess_rollout_duration_seconds{job=\"factory-operator\",namespace=~\"$namespace\",tech_process=~\"$process\"} and on() (factory:operator_up == 1)",
+          "legendFormat": "{{tech_process}}",
+          "range": true,
+          "instant": false,
+          "format": "time_series"
+        }
+      ],
+      "id": 4,
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "title": "Current status",
+      "type": "stat",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Unknown",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "spanNulls": false,
+            "lineWidth": 2,
+            "fillOpacity": 5
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Awaiting reconcile",
+                  "color": "orange",
+                  "index": 0
+                },
+                "1": {
+                  "text": "Current",
+                  "color": "green",
+                  "index": 1
+                }
+              }
+            }
+          ],
+          "displayName": "${__field.labels.tech_process}"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "factory_techprocess_status_current{job=\"factory-operator\",namespace=~\"$namespace\",tech_process=~\"$process\"} and on() (factory:operator_up == 1)",
+          "legendFormat": "{{tech_process}}",
+          "range": false,
+          "instant": true,
+          "format": "time_series"
+        }
+      ],
+      "id": 5,
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "title": "Current revision",
+      "type": "table",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Unknown",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "spanNulls": false,
+            "lineWidth": 2,
+            "fillOpacity": 5
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "factory_techprocess_revision_info{job=\"factory-operator\",namespace=~\"$namespace\",tech_process=~\"$process\"} and on() (factory:operator_up == 1)",
+          "legendFormat": "{{tech_process}} {{revision}}",
+          "range": false,
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "id": 6,
+      "gridPos": {
+        "x": 12,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "title": "Active Conditions",
+      "type": "state-timeline",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Unknown",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "spanNulls": false,
+            "lineWidth": 2,
+            "fillOpacity": 5
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "mergeValues": true,
+        "showValue": "auto",
+        "rowHeight": 0.8,
+        "spanNulls": false,
+        "legend": {
+          "showLegend": true
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(factory_techprocess_condition{job=\"factory-operator\",namespace=~\"$namespace\",tech_process=~\"$process\"} and on() (factory:operator_up == 1) ) == 1",
+          "legendFormat": "{{tech_process}} {{condition}} {{status}}",
+          "range": true,
+          "instant": false,
+          "format": "time_series"
+        }
+      ],
+      "id": 7,
+      "gridPos": {
+        "x": 0,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "title": "Reconcile errors / min",
+      "type": "timeseries",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "opm",
+          "noValue": "Unknown",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "spanNulls": false,
+            "lineWidth": 2,
+            "fillOpacity": 5
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(sum(rate(controller_runtime_reconcile_errors_total{job=\"factory-operator\"}[1m])) * 60) and on() (factory:operator_up == 1)",
+          "legendFormat": "Errors",
+          "range": true,
+          "instant": false,
+          "format": "time_series"
+        }
+      ],
+      "id": 8,
+      "gridPos": {
+        "x": 12,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      }
+    }
+  ],
+  "links": [
+    {
+      "title": "Equipment",
+      "url": "/d/factory-equipment",
+      "keepTime": true,
+      "includeVars": true
+    },
+    {
+      "title": "Readings",
+      "url": "/d/factory-readings",
+      "keepTime": true,
+      "includeVars": true
+    },
+    {
+      "title": "Tech processes",
+      "url": "/d/factory-processes",
+      "keepTime": true,
+      "includeVars": true
+    }
+  ]
+}

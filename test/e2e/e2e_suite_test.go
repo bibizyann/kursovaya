@@ -30,6 +30,8 @@ import (
 	"factory.local/factory-platform/test/utils"
 )
 
+const enabledEnvValue = "true"
+
 var (
 	// managerImage is the manager image to be built and loaded for testing.
 	managerImage = "example.com/factory-platform:v0.0.1"
@@ -77,6 +79,13 @@ var _ = BeforeSuite(func() {
 
 	configureKubectlKubeRC()
 	setupCertManager()
+	if os.Getenv("FACTORY_MONITORING_E2E") == enabledEnvValue {
+		By("installing Prometheus and provisioned Grafana dashboards")
+		cluster := os.Getenv("KIND_CLUSTER")
+		Expect(cluster).NotTo(BeEmpty(), "monitoring E2E requires an explicit Kind cluster")
+		_, err = utils.Run(exec.Command("make", "monitoring-install", "DEV_CLUSTER="+cluster))
+		Expect(err).NotTo(HaveOccurred())
+	}
 })
 
 var _ = AfterSuite(func() {
@@ -87,7 +96,7 @@ var _ = AfterSuite(func() {
 // This prevents local kubectl configurations from affecting test behavior.
 // To enable kuberc, set: KUBECTL_KUBERC=true
 func configureKubectlKubeRC() {
-	if os.Getenv("KUBECTL_KUBERC") != "true" {
+	if os.Getenv("KUBECTL_KUBERC") != enabledEnvValue {
 		By("disabling kubectl kuberc for test isolation")
 		err := os.Setenv("KUBECTL_KUBERC", "false")
 		ExpectWithOffset(1, err).NotTo(HaveOccurred(), "Failed to disable kubectl kuberc")
@@ -101,7 +110,7 @@ func configureKubectlKubeRC() {
 // setupCertManager installs CertManager if needed for webhook tests.
 // Skips installation if CERT_MANAGER_INSTALL_SKIP=true or if already present.
 func setupCertManager() {
-	if os.Getenv("CERT_MANAGER_INSTALL_SKIP") == "true" {
+	if os.Getenv("CERT_MANAGER_INSTALL_SKIP") == enabledEnvValue {
 		_, _ = fmt.Fprintf(GinkgoWriter, "Skipping CertManager installation (CERT_MANAGER_INSTALL_SKIP=true)\n")
 		return
 	}

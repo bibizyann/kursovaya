@@ -1,6 +1,6 @@
 # Телеметрия восьми устройств в Kind
 
-Этап 6 собирает оператор, восемь симуляторов, Mosquitto и отдельный receiver в одном локальном Kubernetes-кластере. Prometheus и Grafana добавляются на этапе 7. Требуются Docker, Go из `go.mod`, Make и Kind (проверки рассчитаны на v0.31.0 с Kubernetes v1.35.0). `kubectl` и Kustomize устанавливаются через Makefile.
+Этап 6 собирает оператор, восемь симуляторов, Mosquitto и отдельный receiver в одном локальном Kubernetes-кластере. Prometheus и Grafana устанавливаются отдельно по [инструкции мониторинга](monitoring.md) (этап 7). Требуются Docker, Go из `go.mod`, Make и Kind (проверки рассчитаны на v0.31.0 с Kubernetes v1.35.0). `kubectl` и Kustomize устанавливаются через Makefile.
 
 ## Запуск
 

@@ -1,0 +1,49 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: factory-telemetry
+  labels:
+    factory.local/monitoring: "true"
+spec:
+  namespaceSelector:
+    matchNames: [factory-telemetry]
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: telemetry-receiver
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 5s
+      scrapeTimeout: 4s
+      honorLabels: true
+      relabelings:
+        - targetLabel: job
+          replacement: factory-telemetry
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: factory-operator
+  labels:
+    factory.local/monitoring: "true"
+spec:
+  namespaceSelector:
+    matchNames: [factory-platform-system]
+  selector:
+    matchLabels:
+      control-plane: controller-manager
+      app.kubernetes.io/name: factory-platform
+  endpoints:
+    - port: https
+      path: /metrics
+      scheme: https
+      interval: 5s
+      scrapeTimeout: 4s
+      honorLabels: true
+      bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+      tlsConfig:
+        # Local controller-runtime self-signed certificate only.
+        insecureSkipVerify: true
+      relabelings:
+        - targetLabel: job
+          replacement: factory-operator

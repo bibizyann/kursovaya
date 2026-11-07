@@ -78,7 +78,7 @@ The demo script targets a named Kind cluster with its own kubeconfig and uses te
 7. Prometheus installation and provisioned Grafana dashboards.
 8. End-to-end fault scenarios and a reproducible demonstration runbook.
 
-Steps 1–5 are implemented: contract, receiver, generator, MQTT transport, operator metrics, and target-revision readiness checks. The single-device Mosquitto pipeline and reconnection are verified locally. Step 6 code and deployment assets are implemented. Eight A/B streams were verified in an isolated Docker network with unchanged broker/receiver containers; the local Kind e2e run remains blocked by the host inotify limit. Subsequent steps require the user's explicit approval after each completed step. The current implementation status is tracked in the [project plan](../../План.md).
+Steps 1–5 are implemented: contract, receiver, generator, MQTT transport, operator metrics, and target-revision readiness checks. The single-device Mosquitto pipeline and reconnection are verified locally. Step 6 code and deployment assets are implemented. Eight A/B streams were verified in an isolated Docker network with unchanged broker/receiver containers; the local Kind e2e run remains blocked by the host inotify limit. Step 7 adds the pinned Prometheus/Grafana stack and three provisioned dashboards; both scrape targets and all eight device streams were verified in the development cluster. Details are recorded in [ADR 0007](0007-monitoring-stack.md). Subsequent steps require the user's explicit approval after each completed step. The current implementation status is tracked in the [project plan](../../План.md).
 
 ## Consequences
 

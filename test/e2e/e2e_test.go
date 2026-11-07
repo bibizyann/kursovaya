@@ -356,6 +356,11 @@ var _ = Describe("Manager", Ordered, func() {
 					verifyEquipmentMetrics(g, product, acceptedRevision)
 				}, time.Minute, 2*time.Second).Should(Succeed())
 				Expect(telemetryPodUIDs(Default)).To(Equal(infrastructure), "A/B must not replace platform pods")
+				if os.Getenv("FACTORY_MONITORING_E2E") == enabledEnvValue {
+					Eventually(func(g Gomega) {
+						verifyMonitoringStack(g, acceptedRevision)
+					}, time.Minute, 2*time.Second).Should(Succeed())
+				}
 				previousRevision = acceptedRevision
 			}
 		})

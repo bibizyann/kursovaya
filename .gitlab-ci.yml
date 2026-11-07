@@ -23,8 +23,8 @@ lint:
   script:
     - make lint-config
     - make lint
-    - bin/golangci-lint run --build-tags=e2e
-    - make telemetry-render
+    - bin/golangci-lint run --build-tags=e2e,monitoring
+    - make telemetry-render monitoring-render
 
 unit:
   stage: test
@@ -66,8 +66,8 @@ telemetry-e2e:
     - export KIND_CLUSTER="factory-ci-$CI_JOB_ID"
     - mkdir -p .cache
     - make kubectl
-    - make test-mqtt
-    - CERT_MANAGER_INSTALL_SKIP=true make test-e2e
+    - make test-mqtt test-monitoring
+    - CERT_MANAGER_INSTALL_SKIP=true FACTORY_MONITORING_E2E=true make test-e2e
   after_script:
     - kind export logs --name "factory-ci-$CI_JOB_ID" .cache/kind-logs || true
     - kind delete cluster --name "factory-ci-$CI_JOB_ID"

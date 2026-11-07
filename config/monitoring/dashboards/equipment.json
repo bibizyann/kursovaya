@@ -1,0 +1,635 @@
+{
+  "uid": "factory-equipment",
+  "title": "Factory / Equipment",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": false,
+  "tags": [
+    "factory",
+    "simulation"
+  ],
+  "timezone": "browser",
+  "refresh": "5s",
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "namespace",
+        "label": "Namespace",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(factory_equipment_telemetry_fresh, namespace)",
+          "refId": "namespace"
+        },
+        "definition": "label_values(factory_equipment_telemetry_fresh, namespace)",
+        "refresh": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "options": [],
+        "sort": 1
+      },
+      {
+        "name": "process",
+        "label": "Tech process",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(factory_equipment_telemetry_fresh{namespace=~\"$namespace\"}, tech_process)",
+          "refId": "process"
+        },
+        "definition": "label_values(factory_equipment_telemetry_fresh{namespace=~\"$namespace\"}, tech_process)",
+        "refresh": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "options": [],
+        "sort": 1
+      },
+      {
+        "name": "workstation",
+        "label": "Workstation",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(factory_equipment_telemetry_fresh{namespace=~\"$namespace\",tech_process=~\"$process\"}, workstation)",
+          "refId": "workstation"
+        },
+        "definition": "label_values(factory_equipment_telemetry_fresh{namespace=~\"$namespace\",tech_process=~\"$process\"}, workstation)",
+        "refresh": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "options": [],
+        "sort": 1
+      },
+      {
+        "name": "equipment",
+        "label": "Equipment",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(factory_equipment_telemetry_fresh{namespace=~\"$namespace\",tech_process=~\"$process\",workstation=~\"$workstation\"}, equipment_id)",
+          "refId": "equipment"
+        },
+        "definition": "label_values(factory_equipment_telemetry_fresh{namespace=~\"$namespace\",tech_process=~\"$process\",workstation=~\"$workstation\"}, equipment_id)",
+        "refresh": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "options": [],
+        "sort": 1
+      }
+    ]
+  },
+  "panels": [
+    {
+      "title": "Receiver availability",
+      "type": "stat",
+      "description": "Unavailable means equipment state is unknown. Check the receiver and Prometheus Targets.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Unknown",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "spanNulls": false,
+            "lineWidth": 2,
+            "fillOpacity": 5
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Unavailable",
+                  "color": "red",
+                  "index": 0
+                },
+                "1": {
+                  "text": "Available",
+                  "color": "green",
+                  "index": 1
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "factory:receiver_up",
+          "legendFormat": "Receiver",
+          "range": false,
+          "instant": true,
+          "format": "time_series"
+        }
+      ],
+      "id": 1,
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "title": "Fresh telemetry",
+      "type": "stat",
+      "description": "No sample and stale sample both mean unknown state. A receiver outage produces No data.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Unknown",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "spanNulls": false,
+            "lineWidth": 2,
+            "fillOpacity": 5
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Stale / missing",
+                  "color": "orange",
+                  "index": 0
+                },
+                "1": {
+                  "text": "Fresh",
+                  "color": "green",
+                  "index": 1
+                }
+              }
+            }
+          ],
+          "displayName": "${__field.labels.equipment_id}"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "factory:equipment_fresh{namespace=~\"$namespace\",tech_process=~\"$process\",workstation=~\"$workstation\",equipment_id=~\"$equipment\"}",
+          "legendFormat": "{{equipment_id}}",
+          "range": false,
+          "instant": true,
+          "format": "time_series"
+        }
+      ],
+      "id": 2,
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "title": "Equipment state over time",
+      "type": "state-timeline",
+      "description": "0 = fresh fault, 1 = fresh healthy state, 2 = stale/missing telemetry. Gaps mean the receiver could not be scraped.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Unknown",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "spanNulls": false,
+            "lineWidth": 2,
+            "fillOpacity": 5
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Fault",
+                  "color": "red",
+                  "index": 0
+                },
+                "1": {
+                  "text": "Healthy",
+                  "color": "green",
+                  "index": 1
+                },
+                "2": {
+                  "text": "Unknown",
+                  "color": "gray",
+                  "index": 2
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "mergeValues": true,
+        "showValue": "auto",
+        "rowHeight": 0.8,
+        "spanNulls": false,
+        "legend": {
+          "showLegend": true
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "factory:equipment_state{namespace=~\"$namespace\",tech_process=~\"$process\",workstation=~\"$workstation\",equipment_id=~\"$equipment\"}",
+          "legendFormat": "{{equipment_id}}",
+          "range": true,
+          "instant": false,
+          "format": "time_series"
+        }
+      ],
+      "id": 3,
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "title": "Calibration",
+      "type": "stat",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Unknown",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "spanNulls": false,
+            "lineWidth": 2,
+            "fillOpacity": 5
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "No",
+                  "color": "red",
+                  "index": 0
+                },
+                "1": {
+                  "text": "Yes",
+                  "color": "green",
+                  "index": 1
+                }
+              }
+            }
+          ],
+          "displayName": "${__field.labels.equipment_id}"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "factory_equipment_calibrated{job=\"factory-telemetry\",namespace=~\"$namespace\",tech_process=~\"$process\",workstation=~\"$workstation\",equipment_id=~\"$equipment\"} and on(namespace,tech_process,workstation,equipment_id) (factory:equipment_fresh{namespace=~\"$namespace\",tech_process=~\"$process\",workstation=~\"$workstation\",equipment_id=~\"$equipment\"} == 1)",
+          "legendFormat": "{{equipment_id}}",
+          "range": false,
+          "instant": true,
+          "format": "time_series"
+        }
+      ],
+      "id": 4,
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "title": "Completed operations / min",
+      "type": "timeseries",
+      "description": "Synthetic operations per device, including rejected checks. Not board throughput; a gap cannot reconstruct exact operation times.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "opm",
+          "noValue": "Unknown",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "spanNulls": false,
+            "lineWidth": 2,
+            "fillOpacity": 5
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "factory:operations_per_minute{namespace=~\"$namespace\",tech_process=~\"$process\",workstation=~\"$workstation\",equipment_id=~\"$equipment\"}",
+          "legendFormat": "{{equipment_id}}",
+          "range": true,
+          "instant": false,
+          "format": "time_series"
+        }
+      ],
+      "id": 5,
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "title": "Errors and rejected checks / min",
+      "type": "timeseries",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "opm",
+          "noValue": "Unknown",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "spanNulls": false,
+            "lineWidth": 2,
+            "fillOpacity": 5
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "factory:operation_errors_per_minute{namespace=~\"$namespace\",tech_process=~\"$process\",workstation=~\"$workstation\",equipment_id=~\"$equipment\"}",
+          "legendFormat": "{{equipment_id}} errors",
+          "range": true,
+          "instant": false,
+          "format": "time_series"
+        },
+        {
+          "refId": "B",
+          "expr": "factory:rejected_operations_per_minute{namespace=~\"$namespace\",tech_process=~\"$process\",workstation=~\"$workstation\",equipment_id=~\"$equipment\"}",
+          "legendFormat": "{{equipment_id}} rejected",
+          "range": true,
+          "instant": false,
+          "format": "time_series"
+        }
+      ],
+      "id": 6,
+      "gridPos": {
+        "x": 12,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "title": "Observed configuration",
+      "type": "table",
+      "description": "Only fresh observed configurations. During a rollout, the previous revision may remain until the next source snapshot.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Unknown",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "spanNulls": false,
+            "lineWidth": 2,
+            "fillOpacity": 5
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "factory_equipment_info{job=\"factory-telemetry\",namespace=~\"$namespace\",tech_process=~\"$process\",workstation=~\"$workstation\",equipment_id=~\"$equipment\"} and on(namespace,tech_process,workstation,equipment_id) (factory:equipment_fresh{namespace=~\"$namespace\",tech_process=~\"$process\",workstation=~\"$workstation\",equipment_id=~\"$equipment\"} == 1)",
+          "legendFormat": "{{equipment_id}}",
+          "range": false,
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "id": 7,
+      "gridPos": {
+        "x": 0,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "title": "Active factory alerts",
+      "type": "table",
+      "description": "Empty means no active alerts while Prometheus is available. Alert delivery outside the stand is not configured.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Unknown",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "spanNulls": false,
+            "lineWidth": 2,
+            "fillOpacity": 5
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "ALERTS{alertstate=\"firing\",alertname=~\"Factory.*\"}",
+          "legendFormat": "{{alertname}}",
+          "range": false,
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "id": 8,
+      "gridPos": {
+        "x": 12,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      }
+    }
+  ],
+  "links": [
+    {
+      "title": "Equipment",
+      "url": "/d/factory-equipment",
+      "keepTime": true,
+      "includeVars": true
+    },
+    {
+      "title": "Readings",
+      "url": "/d/factory-readings",
+      "keepTime": true,
+      "includeVars": true
+    },
+    {
+      "title": "Tech processes",
+      "url": "/d/factory-processes",
+      "keepTime": true,
+      "includeVars": true
+    }
+  ]
+}

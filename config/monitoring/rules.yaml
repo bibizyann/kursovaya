@@ -1,0 +1,78 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: factory-monitoring
+  labels:
+    factory.local/monitoring: 'true'
+spec:
+  groups:
+  - name: factory
+    interval: 5s
+    rules:
+    - record: factory:receiver_up
+      expr: max(up{job="factory-telemetry"}) or vector(0)
+    - record: factory:operator_up
+      expr: max(up{job="factory-operator"}) or vector(0)
+    - record: factory:equipment_fresh
+      expr: factory_equipment_telemetry_fresh{job="factory-telemetry"} and on() (factory:receiver_up == 1)
+    - record: factory:equipment_state
+      expr: ((factory_equipment_healthy{job="factory-telemetry"} and on(namespace, tech_process, workstation, equipment_id) (factory:equipment_fresh == 1)) or on(namespace,
+        tech_process, workstation, equipment_id) ((factory:equipment_fresh == 0) * 0 + 2)) and on() (factory:receiver_up == 1)
+    - record: factory:operations_per_minute
+      expr: (rate(factory_operations_total{job="factory-telemetry"}[1m]) * 60) and on(namespace, tech_process, workstation, equipment_id) (factory:equipment_fresh
+        == 1)
+    - record: factory:operation_errors_per_minute
+      expr: (rate(factory_operation_errors_total{job="factory-telemetry"}[1m]) * 60) and on(namespace, tech_process, workstation, equipment_id) (factory:equipment_fresh
+        == 1)
+    - record: factory:rejected_operations_per_minute
+      expr: (rate(factory_rejected_operations_total{job="factory-telemetry"}[1m]) * 60) and on(namespace, tech_process, workstation, equipment_id) (factory:equipment_fresh
+        == 1)
+    - alert: FactoryTelemetryReceiverUnavailable
+      expr: factory:receiver_up == 0
+      for: 30s
+      labels:
+        severity: warning
+      annotations:
+        summary: Telemetry receiver cannot be scraped; equipment state is unknown.
+    - alert: FactoryOperatorMetricsUnavailable
+      expr: factory:operator_up == 0
+      for: 30s
+      labels:
+        severity: warning
+      annotations:
+        summary: Operator metrics cannot be scraped; process state is unknown.
+    - alert: FactoryEquipmentTelemetryStale
+      expr: factory:equipment_fresh == 0
+      for: 30s
+      labels:
+        severity: warning
+      annotations:
+        summary: No fresh telemetry for {{ $labels.equipment_id }}.
+    - alert: FactoryEquipmentUnhealthy
+      expr: (factory_equipment_healthy{job="factory-telemetry"} == 0) and on(namespace, tech_process, workstation, equipment_id) (factory:equipment_fresh == 1)
+      for: 15s
+      labels:
+        severity: critical
+      annotations:
+        summary: Fresh telemetry reports a fault on {{ $labels.equipment_id }}.
+    - alert: FactoryEquipmentUncalibrated
+      expr: (factory_equipment_calibrated{job="factory-telemetry"} == 0) and on(namespace, tech_process, workstation, equipment_id) (factory:equipment_fresh == 1)
+      for: 30s
+      labels:
+        severity: warning
+      annotations:
+        summary: Fresh telemetry reports missing calibration on {{ $labels.equipment_id }}.
+    - alert: FactoryTechProcessDegraded
+      expr: (factory_techprocess_condition{job="factory-operator",condition="Degraded",status="true"} == 1) and on() (factory:operator_up == 1)
+      for: 30s
+      labels:
+        severity: critical
+      annotations:
+        summary: TechProcess {{ $labels.namespace }}/{{ $labels.tech_process }} is degraded.
+    - alert: FactoryTechProcessStatusStale
+      expr: (factory_techprocess_status_current{job="factory-operator"} == 0) and on() (factory:operator_up == 1)
+      for: 30s
+      labels:
+        severity: warning
+      annotations:
+        summary: TechProcess {{ $labels.namespace }}/{{ $labels.tech_process }} status has not observed current inputs.
