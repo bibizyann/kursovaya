@@ -295,6 +295,11 @@ var _ = Describe("Manager", Ordered, func() {
 					g.Expect(process.Status.ObservedGeneration).To(Equal(process.Generation))
 					g.Expect(meta.IsStatusConditionTrue(process.Status.Conditions, "Ready")).To(BeTrue())
 					g.Expect(process.Status.AppliedRevision).NotTo(BeEmpty())
+					g.Expect(process.Status.ObservedTemplateUID).NotTo(BeEmpty())
+					g.Expect(process.Status.ObservedTemplateGeneration).To(BeNumerically(">", 0))
+					g.Expect(process.Status.StartedAt).NotTo(BeNil())
+					g.Expect(process.Status.CompletedAt).NotTo(BeNil())
+					g.Expect(process.Status.CompletedAt.Before(process.Status.StartedAt)).To(BeFalse())
 					g.Expect(process.Status.AppliedRevision).NotTo(Equal(previousRevision))
 					acceptedRevision = process.Status.AppliedRevision
 					data, err = utils.Run(exec.Command("kubectl", "get", "pods", "-n", "factory-demo", "-l", "factory.local/tech-process=line-one", "-o", "json"))

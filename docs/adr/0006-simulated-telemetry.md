@@ -45,6 +45,14 @@ The publisher retains at most one pending snapshot and one in flight. New pendin
 
 Keep generator, network worker, and HTTP lifecycle separate. Bound connection, acknowledgment, and shutdown waits. Broker outage does not block simulator operation generation or change readiness. Retained data is subject to the same source-time checks as live delivery. The local [Mosquitto configuration](../../infra/mqtt/mosquitto.conf) disables disk persistence and bounds packet size; deployment-wide installation remains step 6.
 
+## Operator status and metrics
+
+Export process Conditions, confirmed desired-revision workload counts, revision info, and rollout timestamps/duration through the existing manager registry. Use a custom collector over cached CRs and persisted status, not increments on Reconcile. Completed duration is a gauge derived from StartedAt/CompletedAt, so repeated reconciliation and operator restart cannot count one rollout multiple times. Historical completeness still depends on Prometheus sampling.
+
+Persist rollout start before child updates and first completion after readiness of the target revision. Preserve completion through later health changes; only a new desired revision starts a new rollout. Deployment/DaemonSet aggregate ready counts alone cannot prove target-revision readiness: verify pod-template revision, observed generation, updated counts, and availability. Mixed revisions expose zero confirmed ready instances until old instances are gone.
+
+Record observed template UID/generation alongside process observedGeneration. Check reconcile inputs again before status writes and use optimistic locking. Stale metric Conditions become unknown; revision-dependent metrics are omitted until current inputs match. MQTT and the telemetry receiver remain independent of these readiness checks.
+
 ## Readiness and outages
 
 Equipment health, setup, and calibration remain simulated checks exposed through workload readiness. A Ready process must refer to the same target revision. MQTT connectivity and monitoring availability are not workload readiness conditions.
@@ -64,7 +72,7 @@ Sequential workstation rollout and automatic rollback remain separate operator t
 7. Prometheus installation and provisioned Grafana dashboards.
 8. End-to-end fault scenarios and a reproducible demonstration runbook.
 
-Steps 1–4 are implemented: contract, receiver, generator, MQTT transport, and a standalone receiver serving /metrics. The single-device Mosquitto pipeline and reconnection are verified locally. Subsequent steps require the user's explicit approval after each completed step. The current implementation status is tracked in the [project plan](../../План.md).
+Steps 1–5 are implemented: contract, receiver, generator, MQTT transport, operator metrics, and target-revision readiness checks. The single-device Mosquitto pipeline and reconnection are verified locally. Subsequent steps require the user's explicit approval after each completed step. The current implementation status is tracked in the [project plan](../../План.md).
 
 ## Consequences
 

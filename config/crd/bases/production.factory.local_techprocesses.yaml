@@ -152,8 +152,8 @@ spec:
                   being reconciled.
                 type: string
               completedAt:
-                description: CompletedAt is set after the current revision becomes
-                  ready.
+                description: CompletedAt records the first readiness of the current
+                  revision and survives later health changes.
                 format: date-time
                 type: string
               components:
@@ -177,7 +177,8 @@ spec:
                       description: Name is the component name from the selected template.
                       type: string
                     ready:
-                      description: Ready is the number of ready workload instances.
+                      description: Ready counts confirmed ready instances of the reconciled
+                        revision.
                       format: int32
                       type: integer
                   required:
@@ -260,13 +261,24 @@ spec:
                   by the controller.
                 format: int64
                 type: integer
+              observedTemplateGeneration:
+                description: |-
+                  ObservedTemplateGeneration identifies the template spec used for these conditions.
+                  Zero means the referenced template was missing.
+                format: int64
+                type: integer
+              observedTemplateUID:
+                description: ObservedTemplateUID distinguishes deletion and recreation
+                  of the referenced template.
+                type: string
               readyWorkloads:
-                description: ReadyWorkloads is the number of ready workload instances.
+                description: ReadyWorkloads counts confirmed ready instances of the
+                  reconciled revision.
                 format: int32
                 type: integer
               startedAt:
-                description: StartedAt is set when reconciliation of the current revision
-                  starts.
+                description: StartedAt is persisted before applying children for a
+                  new revision.
                 format: date-time
                 type: string
               workstations:

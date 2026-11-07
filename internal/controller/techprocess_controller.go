@@ -77,7 +77,7 @@ func (r *TechProcessReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	templateKey := types.NamespacedName{Namespace: process.Namespace, Name: process.Spec.TemplateRef.Name}
 	if err := r.Get(ctx, templateKey, template); err != nil {
 		if apierrors.IsNotFound(err) {
-			statusErr := r.setDegradedStatus(ctx, process, "TemplateNotFound",
+			statusErr := r.setDegradedStatus(ctx, process, nil, "TemplateNotFound",
 				fmt.Sprintf("TechProcessTemplate %q does not exist", templateKey.Name))
 			return ctrl.Result{RequeueAfter: missingTemplateRequeue}, statusErr
 		}
@@ -85,18 +85,26 @@ func (r *TechProcessReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	}
 
 	if err := workload.Validate(process, template); err != nil {
-		statusErr := r.setDegradedStatus(ctx, process, "InvalidDesiredState", err.Error())
+		statusErr := r.setDegradedStatus(ctx, process, template, "InvalidDesiredState", err.Error())
 		return ctrl.Result{}, errors.Join(err, statusErr)
 	}
 
 	revision, err := workload.Revision(process, template)
 	if err != nil {
-		statusErr := r.setDegradedStatus(ctx, process, "RevisionCalculationFailed", err.Error())
+		statusErr := r.setDegradedStatus(ctx, process, template, "RevisionCalculationFailed", err.Error())
 		return ctrl.Result{}, errors.Join(err, statusErr)
 	}
 
+	if process.Status.AppliedRevision != revision || process.Status.StartedAt == nil {
+		if err := r.setStatus(ctx, process, template, statusUpdate{
+			revision: revision, reason: "ApplyingRevision", message: "Applying the desired revision to workloads",
+		}); err != nil {
+			return ctrl.Result{}, err
+		}
+	}
+
 	if err := r.applyParameters(ctx, process, revision); err != nil {
-		statusErr := r.setDegradedStatus(ctx, process, "ParametersApplyFailed", err.Error())
+		statusErr := r.setDegradedStatus(ctx, process, template, "ParametersApplyFailed", err.Error())
 		return ctrl.Result{}, errors.Join(err, statusErr)
 	}
 
@@ -115,7 +123,7 @@ func (r *TechProcessReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 				return ctrl.Result{}, err
 			}
 			if err := r.applyDeployment(ctx, process, desired); err != nil {
-				statusErr := r.setDegradedStatus(ctx, process, "WorkloadApplyFailed", err.Error())
+				statusErr := r.setDegradedStatus(ctx, process, template, "WorkloadApplyFailed", err.Error())
 				return ctrl.Result{}, errors.Join(err, statusErr)
 			}
 			desiredDeployments[desired.Name] = struct{}{}
@@ -125,7 +133,7 @@ func (r *TechProcessReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 				return ctrl.Result{}, err
 			}
 			if err := r.applyDaemonSet(ctx, process, desired); err != nil {
-				statusErr := r.setDegradedStatus(ctx, process, "WorkloadApplyFailed", err.Error())
+				statusErr := r.setDegradedStatus(ctx, process, template, "WorkloadApplyFailed", err.Error())
 				return ctrl.Result{}, errors.Join(err, statusErr)
 			}
 			desiredDaemonSets[desired.Name] = struct{}{}
@@ -133,18 +141,18 @@ func (r *TechProcessReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	}
 
 	if err := r.pruneStaleWorkloads(ctx, process, desiredDeployments, desiredDaemonSets); err != nil {
-		statusErr := r.setDegradedStatus(ctx, process, "WorkloadPruneFailed", err.Error())
+		statusErr := r.setDegradedStatus(ctx, process, template, "WorkloadPruneFailed", err.Error())
 		return ctrl.Result{}, errors.Join(err, statusErr)
 	}
 
-	components, desiredCount, readyCount, ready, err := r.collectStatus(ctx, process, template)
+	components, desiredCount, readyCount, ready, err := r.collectStatus(ctx, process, template, revision)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 
 	if !ready && r.rolloutTimedOut(process, revision) {
 		message := fmt.Sprintf("revision %s did not become ready before timeout", revision)
-		if err := r.setStatus(ctx, process, statusUpdate{
+		if err := r.setStatus(ctx, process, template, statusUpdate{
 			revision:         revision,
 			components:       components,
 			desiredWorkloads: desiredCount,
@@ -164,7 +172,7 @@ func (r *TechProcessReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		reason = "RevisionReady"
 		message = fmt.Sprintf("revision %s is ready", revision)
 	}
-	if err := r.setStatus(ctx, process, statusUpdate{
+	if err := r.setStatus(ctx, process, template, statusUpdate{
 		revision:         revision,
 		components:       components,
 		desiredWorkloads: desiredCount,
@@ -303,6 +311,7 @@ func (r *TechProcessReconciler) collectStatus(
 	ctx context.Context,
 	process *productionv1alpha1.TechProcess,
 	template *productionv1alpha1.TechProcessTemplate,
+	revision string,
 ) ([]productionv1alpha1.ComponentStatus, int32, int32, bool, error) {
 	components := make([]productionv1alpha1.ComponentStatus, 0, len(template.Spec.Components))
 	var totalDesired int32
@@ -323,23 +332,17 @@ func (r *TechProcessReconciler) collectStatus(
 			if err := r.Get(ctx, key, object); err != nil {
 				return nil, 0, 0, false, err
 			}
-			if object.Spec.Replicas != nil {
-				status.Desired = *object.Spec.Replicas
-			}
-			status.Ready = object.Status.ReadyReplicas
-			if object.Status.ObservedGeneration < object.Generation || status.Desired == 0 || status.Ready < status.Desired {
-				allReady = false
-			}
+			var complete bool
+			status.Desired, status.Ready, complete = workload.DeploymentReadiness(object, revision)
+			allReady = allReady && complete && metav1.IsControlledBy(object, process)
 		case productionv1alpha1.WorkloadKindDaemonSet:
 			object := &appsv1.DaemonSet{}
 			if err := r.Get(ctx, key, object); err != nil {
 				return nil, 0, 0, false, err
 			}
-			status.Desired = object.Status.DesiredNumberScheduled
-			status.Ready = object.Status.NumberReady
-			if object.Status.ObservedGeneration < object.Generation || status.Desired == 0 || status.Ready < status.Desired {
-				allReady = false
-			}
+			var complete bool
+			status.Desired, status.Ready, complete = workload.DaemonSetReadiness(object, revision)
+			allReady = allReady && complete && metav1.IsControlledBy(object, process)
 		}
 
 		totalDesired += status.Desired
@@ -350,7 +353,7 @@ func (r *TechProcessReconciler) collectStatus(
 }
 
 func (r *TechProcessReconciler) rolloutTimedOut(process *productionv1alpha1.TechProcess, revision string) bool {
-	if process.Status.AppliedRevision != revision || process.Status.StartedAt == nil {
+	if process.Status.AppliedRevision != revision || process.Status.StartedAt == nil || process.Status.CompletedAt != nil {
 		return false
 	}
 	timeout := process.Spec.Timeout.Duration
@@ -374,10 +377,11 @@ type statusUpdate struct {
 func (r *TechProcessReconciler) setDegradedStatus(
 	ctx context.Context,
 	process *productionv1alpha1.TechProcess,
+	template *productionv1alpha1.TechProcessTemplate,
 	reason string,
 	message string,
 ) error {
-	return r.setStatus(ctx, process, statusUpdate{
+	return r.setStatus(ctx, process, template, statusUpdate{
 		revision: process.Status.AppliedRevision,
 		degraded: true,
 		reason:   reason,
@@ -388,19 +392,38 @@ func (r *TechProcessReconciler) setDegradedStatus(
 func (r *TechProcessReconciler) setStatus(
 	ctx context.Context,
 	process *productionv1alpha1.TechProcess,
+	template *productionv1alpha1.TechProcessTemplate,
 	update statusUpdate,
 ) error {
 	current := &productionv1alpha1.TechProcess{}
 	if err := r.Get(ctx, client.ObjectKeyFromObject(process), current); err != nil {
 		return err
 	}
+	if current.UID != process.UID || current.Generation != process.Generation {
+		return statusConflict(process, "process changed during reconciliation")
+	}
+	latestTemplate := &productionv1alpha1.TechProcessTemplate{}
+	templateErr := r.Get(ctx, types.NamespacedName{Namespace: process.Namespace, Name: process.Spec.TemplateRef.Name}, latestTemplate)
+	if templateErr != nil && !apierrors.IsNotFound(templateErr) {
+		return templateErr
+	}
+	if (template == nil && templateErr == nil) || (template != nil && (templateErr != nil ||
+		latestTemplate.UID != template.UID || latestTemplate.Generation != template.Generation)) {
+		return statusConflict(process, "template changed during reconciliation")
+	}
 	before := current.DeepCopy()
 	now := metav1.NewTime(r.now())
 
-	if update.revision != "" && current.Status.AppliedRevision != update.revision {
+	if update.revision != "" && (current.Status.AppliedRevision != update.revision || current.Status.StartedAt == nil) {
 		current.Status.AppliedRevision = update.revision
 		current.Status.StartedAt = &now
 		current.Status.CompletedAt = nil
+	}
+	current.Status.ObservedTemplateGeneration = 0
+	current.Status.ObservedTemplateUID = ""
+	if template != nil {
+		current.Status.ObservedTemplateGeneration = template.Generation
+		current.Status.ObservedTemplateUID = template.UID
 	}
 	current.Status.ObservedGeneration = current.Generation
 	current.Status.Components = update.components
@@ -435,9 +458,18 @@ func (r *TechProcessReconciler) setStatus(
 	}
 
 	if reflect.DeepEqual(before.Status, current.Status) {
+		process.Status = *current.Status.DeepCopy()
 		return nil
 	}
-	return r.Status().Patch(ctx, current, client.MergeFrom(before))
+	if err := r.Status().Patch(ctx, current, client.MergeFromWithOptions(before, client.MergeFromWithOptimisticLock{})); err != nil {
+		return err
+	}
+	process.Status = *current.Status.DeepCopy()
+	return nil
+}
+
+func statusConflict(process *productionv1alpha1.TechProcess, message string) error {
+	return apierrors.NewConflict(productionv1alpha1.SchemeGroupVersion.WithResource("techprocesses").GroupResource(), process.Name, errors.New(message))
 }
 
 func setCondition(

@@ -20,6 +20,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 // RolloutStrategy describes how workloads that belong to a process are replaced.
@@ -82,7 +83,7 @@ type ComponentStatus struct {
 	Kind WorkloadKind `json:"kind"`
 	// Desired is the number of desired workload instances.
 	Desired int32 `json:"desired"`
-	// Ready is the number of ready workload instances.
+	// Ready counts confirmed ready instances of the reconciled revision.
 	Ready int32 `json:"ready"`
 }
 
@@ -107,6 +108,13 @@ type WorkstationStatus struct {
 type TechProcessStatus struct {
 	// ObservedGeneration is the most recent generation processed by the controller.
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+	// ObservedTemplateGeneration identifies the template spec used for these conditions.
+	// Zero means the referenced template was missing.
+	// +optional
+	ObservedTemplateGeneration int64 `json:"observedTemplateGeneration,omitempty"`
+	// ObservedTemplateUID distinguishes deletion and recreation of the referenced template.
+	// +optional
+	ObservedTemplateUID types.UID `json:"observedTemplateUID,omitempty"`
 	// Conditions summarize process availability, progress, and degradation.
 	// +listType=map
 	// +listMapKey=type
@@ -116,7 +124,7 @@ type TechProcessStatus struct {
 	AppliedRevision string `json:"appliedRevision,omitempty"`
 	// DesiredWorkloads is the number of desired workload instances.
 	DesiredWorkloads int32 `json:"desiredWorkloads,omitempty"`
-	// ReadyWorkloads is the number of ready workload instances.
+	// ReadyWorkloads counts confirmed ready instances of the reconciled revision.
 	ReadyWorkloads int32 `json:"readyWorkloads,omitempty"`
 	// Components contains per-component rollout progress.
 	// +listType=map
@@ -128,10 +136,10 @@ type TechProcessStatus struct {
 	// +listMapKey=name
 	// +optional
 	Workstations []WorkstationStatus `json:"workstations,omitempty"`
-	// StartedAt is set when reconciliation of the current revision starts.
+	// StartedAt is persisted before applying children for a new revision.
 	// +optional
 	StartedAt *metav1.Time `json:"startedAt,omitempty"`
-	// CompletedAt is set after the current revision becomes ready.
+	// CompletedAt records the first readiness of the current revision and survives later health changes.
 	// +optional
 	CompletedAt *metav1.Time `json:"completedAt,omitempty"`
 }

@@ -133,6 +133,7 @@ var _ = Describe("TechProcess Controller", func() {
 
 		deployment.Status.ObservedGeneration = deployment.Generation
 		deployment.Status.Replicas = 1
+		deployment.Status.UpdatedReplicas = 1
 		deployment.Status.ReadyReplicas = 1
 		deployment.Status.AvailableReplicas = 1
 		Expect(k8sClient.Status().Update(ctx, deployment)).To(Succeed())
@@ -149,6 +150,99 @@ var _ = Describe("TechProcess Controller", func() {
 		Expect(process.Status.ReadyWorkloads).To(Equal(int32(1)))
 		Expect(process.Status.AppliedRevision).NotTo(BeEmpty())
 		Expect(process.Status.CompletedAt).NotTo(BeNil())
+	})
+
+	It("waits for the target revision and preserves completed rollout timing across restart", func() {
+		clock := time.Date(2026, 10, 2, 12, 0, 0, 0, time.UTC)
+		r := &TechProcessReconciler{Client: k8sClient, Scheme: k8sClient.Scheme(), Now: func() time.Time { return clock }}
+		request := reconcile.Request{NamespacedName: processKey}
+		_, err := r.Reconcile(ctx, request)
+		Expect(err).NotTo(HaveOccurred())
+		deployment := &appsv1.Deployment{}
+		key := types.NamespacedName{Namespace: resourceNamespace, Name: workload.ResourceName(resourceName, "vision")}
+		Expect(k8sClient.Get(ctx, key, deployment)).To(Succeed())
+		deployment.Status = appsv1.DeploymentStatus{
+			ObservedGeneration: deployment.Generation, Replicas: 1, ReadyReplicas: 1, AvailableReplicas: 1,
+		}
+		Expect(k8sClient.Status().Update(ctx, deployment)).To(Succeed())
+		_, err = r.Reconcile(ctx, request)
+		Expect(err).NotTo(HaveOccurred())
+		process := &productionv1alpha1.TechProcess{}
+		Expect(k8sClient.Get(ctx, processKey, process)).To(Succeed())
+		Expect(apiMeta.IsStatusConditionTrue(process.Status.Conditions, productionv1alpha1.ConditionReady)).To(BeFalse())
+		Expect(process.Status.ReadyWorkloads).To(BeZero())
+		Expect(process.Status.CompletedAt).To(BeNil())
+
+		clock = clock.Add(30 * time.Second)
+		Expect(k8sClient.Get(ctx, key, deployment)).To(Succeed())
+		deployment.Status.UpdatedReplicas = 1
+		Expect(k8sClient.Status().Update(ctx, deployment)).To(Succeed())
+		_, err = r.Reconcile(ctx, request)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(k8sClient.Get(ctx, processKey, process)).To(Succeed())
+		firstStatus := *process.Status.DeepCopy()
+		Expect(firstStatus.CompletedAt.Sub(firstStatus.StartedAt.Time)).To(Equal(30 * time.Second))
+
+		clock = clock.Add(time.Hour)
+		r = &TechProcessReconciler{Client: k8sClient, Scheme: k8sClient.Scheme(), Now: func() time.Time { return clock }}
+		_, err = r.Reconcile(ctx, request)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(k8sClient.Get(ctx, processKey, process)).To(Succeed())
+		Expect(process.Status.StartedAt).To(Equal(firstStatus.StartedAt))
+		Expect(process.Status.CompletedAt).To(Equal(firstStatus.CompletedAt))
+		Expect(k8sClient.Get(ctx, key, deployment)).To(Succeed())
+		deployment.Status.ReadyReplicas, deployment.Status.AvailableReplicas = 0, 0
+		Expect(k8sClient.Status().Update(ctx, deployment)).To(Succeed())
+		_, err = r.Reconcile(ctx, request)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(k8sClient.Get(ctx, processKey, process)).To(Succeed())
+		Expect(apiMeta.IsStatusConditionTrue(process.Status.Conditions, productionv1alpha1.ConditionDegraded)).To(BeFalse())
+		Expect(process.Status.CompletedAt).To(Equal(firstStatus.CompletedAt))
+
+		// A template-only update changes the revision without changing the parent generation.
+		template := &productionv1alpha1.TechProcessTemplate{}
+		Expect(k8sClient.Get(ctx, templateKey, template)).To(Succeed())
+		template.Spec.Revision = "2.0.0"
+		Expect(k8sClient.Update(ctx, template)).To(Succeed())
+		_, err = r.Reconcile(ctx, request)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(k8sClient.Get(ctx, processKey, process)).To(Succeed())
+		Expect(process.Status.AppliedRevision).NotTo(Equal(firstStatus.AppliedRevision))
+		Expect(process.Status.ObservedTemplateGeneration).To(Equal(template.Generation))
+		Expect(process.Status.ObservedTemplateUID).To(Equal(template.UID))
+		Expect(process.Status.StartedAt.Time.Equal(clock)).To(BeTrue())
+		Expect(process.Status.CompletedAt).To(BeNil())
+		Expect(apiMeta.IsStatusConditionTrue(process.Status.Conditions, productionv1alpha1.ConditionReady)).To(BeFalse())
+		Expect(k8sClient.Get(ctx, key, deployment)).To(Succeed())
+		deployment.Status = appsv1.DeploymentStatus{
+			ObservedGeneration: deployment.Generation, Replicas: 1, UpdatedReplicas: 1, ReadyReplicas: 1, AvailableReplicas: 1,
+		}
+		Expect(k8sClient.Status().Update(ctx, deployment)).To(Succeed())
+		clock = clock.Add(15 * time.Second)
+		_, err = r.Reconcile(ctx, request)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(k8sClient.Get(ctx, processKey, process)).To(Succeed())
+		Expect(process.Status.CompletedAt.Sub(process.Status.StartedAt.Time)).To(Equal(15 * time.Second))
+	})
+
+	It("rejects status calculated from an obsolete process or template", func() {
+		r := &TechProcessReconciler{Client: k8sClient, Scheme: k8sClient.Scheme()}
+		process := &productionv1alpha1.TechProcess{}
+		template := &productionv1alpha1.TechProcessTemplate{}
+		Expect(k8sClient.Get(ctx, processKey, process)).To(Succeed())
+		Expect(k8sClient.Get(ctx, templateKey, template)).To(Succeed())
+		oldProcess := process.DeepCopy()
+		process.Spec.Parameters["product"] = "changed-product"
+		Expect(k8sClient.Update(ctx, process)).To(Succeed())
+		update := statusUpdate{revision: "old", ready: true, reason: "RevisionReady", message: "Ready"}
+		Expect(apierrors.IsConflict(r.setStatus(ctx, oldProcess, template, update))).To(BeTrue())
+		oldTemplate := template.DeepCopy()
+		template.Spec.Revision = "changed-revision"
+		Expect(k8sClient.Update(ctx, template)).To(Succeed())
+		Expect(apierrors.IsConflict(r.setStatus(ctx, process, oldTemplate, update))).To(BeTrue())
+		Expect(k8sClient.Get(ctx, processKey, process)).To(Succeed())
+		Expect(process.Status.ObservedGeneration).To(BeZero())
+		Expect(process.Status.CompletedAt).To(BeNil())
 	})
 
 	It("reports a missing template without creating workloads", func() {
