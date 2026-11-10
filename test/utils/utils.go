@@ -31,7 +31,6 @@ const (
 	certmanagerVersion = "v1.20.2"
 	certmanagerURLTmpl = "https://github.com/cert-manager/cert-manager/releases/download/%s/cert-manager.yaml"
 
-	defaultKindBinary  = "kind"
 	defaultKindCluster = "kind"
 )
 
@@ -139,12 +138,7 @@ func LoadImageToKindClusterWithName(name string) error {
 	if v, ok := os.LookupEnv("KIND_CLUSTER"); ok {
 		cluster = v
 	}
-	kindOptions := []string{"load", "docker-image", name, "--name", cluster}
-	kindBinary := defaultKindBinary
-	if v, ok := os.LookupEnv("KIND"); ok {
-		kindBinary = v
-	}
-	cmd := exec.Command(kindBinary, kindOptions...)
+	cmd := exec.Command("bash", "hack/load-kind-images.sh", cluster, name)
 	_, err := Run(cmd)
 	return err
 }

@@ -19,7 +19,7 @@ fi
 make docker-build docker-build-simulator docker-build-telemetry-receiver \
   IMG="$operator_image" SIMULATOR_IMG="$simulator_image" RECEIVER_IMG="$receiver_image"
 docker pull "$broker_image"
-"$kind_bin" load docker-image --name "$cluster" "$operator_image" "$simulator_image" "$receiver_image" "$broker_image"
+KIND="$kind_bin" bash hack/load-kind-images.sh "$cluster" "$operator_image" "$simulator_image" "$receiver_image" "$broker_image"
 
 # Temporary overlays keep image overrides out of tracked manifests.
 overlay=$(mktemp -d "$root/.cache/telemetry-overlay-XXXXXX")
